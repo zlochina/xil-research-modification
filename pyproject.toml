@@ -23,6 +23,8 @@ spectral = "0.19"
 tensorboardx = "1.6"
 tqdm = "4.43.0"
 xlrd = "1.2.0"
+blessings = "^1.7"
+lime = "^0.2.0.1"
 
 
 [build-system]
