@@ -1,12 +1,17 @@
 # Bakalarska prace
 
-## Table of content
+## Table of contents
 
 ## Description
 
+## Notes of the project
+- [image.py](./capsule-code/code/Fashion_MNIST/caipi/caipi/image.py) is not used at all. Defined classes are not seen in other files
+
 ## Main TODO list
 - [ ] go through toodo list of 27-th August
-- [ ] Add poetry environment
+- [x] Add poetry environment.
+    - [x] Init
+    - [x] Download dependecies `poetry add autograd==1.1.7 matplotlib==3.0.2 opencv-python==4.0.0.21 pillow==6.2.2 scikit-image==0.15.0 scikit-learn==0.20.3 scipy==1.2.0 seaborn==0.9.0 setproctitle==1.1.10 spectral==0.19 tensorboardx==1.6 torch==1.2.0 torchvision==0.4.0 tqdm==4.43.0 xlrd==1.2.0`
 
 ## Notes of 27th August
 

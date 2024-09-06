@@ -3,6 +3,8 @@ import blessings
 import matplotlib.pyplot as plt
 import gzip
 from os.path import join
+
+import numpy.random.mtrand
 from matplotlib.cm import get_cmap
 from time import time
 from itertools import product
@@ -17,31 +19,40 @@ from lime.wrappers.scikit_image import SegmentationAlgorithm
 
 from . import Problem, PipeStep, densify, vstack, hstack
 
-
+# Initializes a terminal
 _TERM = blessings.Terminal()
 
 
 class ImageProblem(Problem):
     def __init__(self, **kwargs):
-        labels = kwargs.pop('labels')
-        images = kwargs.pop('images')
+        # extract different keywords from kwargs
+        labels: np.ndarray = kwargs.pop('labels')
+        images: np.ndarray = kwargs.pop('images')
         self.class_names = kwargs.pop('class_names')
         n_examples = kwargs.pop('n_examples', None)
         self.lime_repeats = kwargs.pop('lime_repeats', 1)
 
         if n_examples is not None:
-            rng = check_random_state(kwargs.get('rng', None))
-            perm = rng.permutation(len(labels))[:n_examples]
+            rng: numpy.random.mtrand.RandomState = check_random_state(kwargs.get('rng', None))
+            perm: np.ndarray = rng.permutation(len(labels))[:n_examples] # a random permutation of indices
             images, labels = images[perm], labels[perm]
+            # images and labels are shuffled according to the generated permutation
 
+        # In the whole class y are lables
         self.y = labels
-        self.images = self._add_confounders(images)
-        self.X = np.stack([gray2rgb(image) for image in self.images], 0)
 
-        self.explainable = set(range(len(self.y)))
+        # TODO: find the meaning of this operation
+        self.images = self._add_confounders(images)
+        self.X = np.stack([gray2rgb(image) for image in self.images], 0) # stacked images by the first axis,
+                                                                              # which means that .shape returns something
+                                                                              # like (n_examples, M, 3), where M is the
+                                                                              # number of pixels
+
+        self.explainable = set(range(len(self.y))) # a set of indices, which is used for TODO
 
         super().__init__(**kwargs)
 
+    # TODO: add explanation to the function after trying it out
     def _add_confounders(self, images):
         noisy_images = []
         for image, label in zip(images, self.y):
@@ -49,14 +60,19 @@ class ImageProblem(Problem):
             noisy_images.append(np.maximum(image, confounder))
         return np.array(noisy_images, dtype=np.uint8)
 
+    # TODO: try to find an image in jupyter and try out this function on that picture
     def _y_to_confounder(self, image, label):
         dd = image.shape[-1] // len(self.class_names)
         ys, xs = range(label * dd, (label + 1) * dd), range(dd)
-        mask = np.zeros_like(image)
-        mask[np.ix_(ys, xs)] = 255
+        # ys=[label*dd...(label + 1) * dd - 1], xs = [0...dd-1]
+        mask = np.zeros_like(image) # zero-filled space with the same dimension as image
+        mask[np.ix_(ys, xs)] = 255 # Not sure, but I guess it sets the specified region (by ys and xs) to 0xff
         return mask
 
     def preproc(self, images):
+        """
+        Preprocessing images by converting them into grayscale and flatenning multidimensional array
+        """
         return np.array([rgb2gray(image).ravel() for image in images])
 
     def explain(self, learner, known_examples, i, pred_y, return_segments=False):
