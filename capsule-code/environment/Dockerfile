@@ -7,7 +7,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential=12.4ubuntu1 \
         libgit2-dev=0.26.0+dfsg.1-1.1ubuntu0.2 \
-        libssl-dev=1.1.1-1ubuntu2.1~18.04.5 \
+        libssl-dev=1.1.1* \
         pkg-config=0.29.1-0ubuntu2 \
         python3-opencv=3.2.0+dfsg-4ubuntu0.1 \
     && rm -rf /var/lib/apt/lists/*
