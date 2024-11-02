@@ -18,42 +18,42 @@
     - [ ] Research how to schedule and use rci cluster, maybe ask Professor or admins of RCI for manual.
 
 ## Tree of the paper code
-- [ ] code/
-- [ ] ├── Fashion_MNIST
-- [ ] │   └── caipi
-- [ ] │       ├── caipi
-- [ ] │       └── rrr
-- [ ] │           ├── bin
-- [ ] │           ├── data
-- [ ] │           ├── experiments
-- [ ] │           └── rrr
-- [ ] ├── Plant_Phenotyping
-- [ ] │   ├── hs_dataset_splits
-- [ ] │   │   ├── cv0
-- [ ] │   │   ├── cv1
-- [ ] │   │   ├── cv2
-- [ ] │   │   ├── cv3
-- [ ] │   │   └── cv4
-- [ ] │   ├── hs_utils
-- [ ] │   ├── rgb_dataset_splits
-- [ ] │   └── rgb_utils
-- [ ] │       └── __pycache__
-- [ ] ├── Strategy_Analysis_Visualization
-- [ ] │   └── libs
-- [ ] │       └── auto_spectral_clustering
-- [ ] │           ├── __pycache__
-- [ ] │           └── fig
-- [ ] ├── User_Study
-- [ ] └── run_scripts
-- [ ]     ├── run_scripts_fashion
-- [ ]     ├── run_scripts_hs
-- [ ]     │   ├── with_training
-- [ ]     │   └── without_training
-- [ ]     ├── run_scripts_rgb
-- [ ]     │   ├── with_training
-- [ ]     │   └── without_training
-- [ ]     ├── run_scripts_strategy_analysis
-- [ ]     └── run_scripts_user_study
+- [ ] `code/`
+- [ ] `├── Fashion_MNIST`
+- [ ] `│   └── caipi`
+- [ ] `│       ├── caipi`
+- [ ] `│       └── rrr`
+- [ ] `│           ├── bin`
+- [ ] `│           ├── data`
+- [ ] `│           ├── experiments`
+- [ ] `│           └── rrr`
+- [ ] `├── Plant_Phenotyping`
+- [ ] `│   ├── hs_dataset_splits`
+- [ ] `│   │   ├── cv0`
+- [ ] `│   │   ├── cv1`
+- [ ] `│   │   ├── cv2`
+- [ ] `│   │   ├── cv3`
+- [ ] `│   │   └── cv4`
+- [ ] `│   ├── hs_utils`
+- [ ] `│   ├── rgb_dataset_splits`
+- [ ] `│   └── rgb_utils`
+- [ ] `│       └── __pycache__`
+- [ ] `├── Strategy_Analysis_Visualization`
+- [ ] `│   └── libs`
+- [ ] `│       └── auto_spectral_clustering`
+- [ ] `│           ├── __pycache__`
+- [ ] `│           └── fig`
+- [ ] `├── User_Study`
+- [ ] `└── run_scripts`
+- [ ] `    ├── run_scripts_fashion`
+- [ ] `    ├── run_scripts_hs`
+- [ ] `    │   ├── with_training`
+- [ ] `    │   └── without_training`
+- [ ] `    ├── run_scripts_rgb`
+- [ ] `    │   ├── with_training`
+- [ ] `    │   └── without_training`
+- [ ] `    ├── run_scripts_strategy_analysis`
+- [ ] `    └── run_scripts_user_study`
 
 ## QAs
 - [ ] 
