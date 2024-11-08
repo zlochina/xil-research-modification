@@ -5,6 +5,8 @@
     - [ ] Research how it is done, what modules are used, on what kind of dataset it is done
     - [ ] Try to experiment with input parameters
     - [ ] Understand how can I evaluate model learning, where learning is done in short time to show speed of progress, and based on input parameters
+    - [ ] Finish disassemble of the [paper](./flow.md)
+    - [ ] Create a dictionary of the terminology (e.g. active learning, XIL, Grad-CAM, LIME, ...)
 
 - [ ] Building project:
     - [ ] Find EKG datasets
@@ -13,6 +15,7 @@
 - [ ] Environment:
     - [ ] Research how to build singularity container in order for it to be run in RCI cluster
     - [ ] Build container with dependencies.
+    - [ ] Try out building container using Singularity
 
 - [ ] RCI cluster:
     - [ ] Research how to schedule and use rci cluster, maybe ask Professor or admins of RCI for manual.
@@ -61,6 +64,7 @@
 ## Flow
 ### Find where RRR is applied
 <!-- TODO: DELETE ❌✅ -->
+Further `RRR` stands for `Right Reasons` part of the RRR loss function of the differentiable models
 * Fashion_MNIST:
     * ✅caipi/caipi (definition of classes used in parent directory modules):
     * ✅caipi/rrr/bin:
@@ -76,4 +80,10 @@
     * ✅caipi:
         1. caipi.caipi(): CounterExamples. `problem.query_label(i);corrections.update()`
         2. versus-rrr (main flow): Usage of CE and RRR. Flow looks like comparisson of the algorithms
-<!-- * Plant_Phenotyping -->
+* Plant_Phenotyping:
+    * ✅hs_utils:
+        1. rrr_loss_hs.rrr_loss_function: RRR implementation
+    * ✅rgb_utils:
+        1. rrr_loss_rgb.rrr_loss_function: RRR implementation very simmilar to hs RRR implementation
+    * ❌.:
+        <!-- 1. TODO Add main_hs and main_rgb usage of rrr -->
