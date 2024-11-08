@@ -25,8 +25,8 @@ from .network_hs import ConvNetDefault as NetDefault
 from sklearn.metrics import balanced_accuracy_score
 from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
-from .rrr_loss_hs import rrr_loss_function
-from utils import PytorchProcessName
+from .hs_utils.rrr_loss_hs import rrr_loss_function
+from ..utils import PytorchProcessName
 
 from .hs_utils.misc_functions import save_class_activation_images3D
 from .hs_utils.gradcam import GradCam

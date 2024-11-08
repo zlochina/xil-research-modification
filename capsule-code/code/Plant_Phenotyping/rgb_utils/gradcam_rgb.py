@@ -11,7 +11,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, 'libs')
-from rgb_utils.misc_functions_rgb import get_example_params, save_class_activation_images
+from .misc_functions_rgb import get_example_params, save_class_activation_images
 
 torch.set_num_threads(2)
 
