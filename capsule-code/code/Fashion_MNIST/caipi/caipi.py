@@ -296,49 +296,48 @@ def main():
     fmt_class = argparse.ArgumentDefaultsHelpFormatter
     parser = argparse.ArgumentParser(formatter_class=fmt_class)
     parser.add_argument('problem', choices=sorted(PROBLEMS.keys()),
-                        help='name of the problem')
+                        help='name of the problem')  # Required: Selects the problem type (toy-fst, toy-lst, colors-rule0, etc.)
     parser.add_argument('learner', choices=sorted(LEARNERS.keys()),
-                        default='svm', help='Active learner to use')
+                        default='svm',
+                        help='Active learner to use')  # Selects learning algorithm (lr, svm, l1svm, elastic)
     parser.add_argument('strategy', type=str, default='random',
-                        help='Query selection strategy to use')
+                        help='Query selection strategy to use')  # Defines strategy for selecting queries
     parser.add_argument('-s', '--seed', type=int, default=0,
-                        help='RNG seed')
+                        help='RNG seed')  # Random number generator seed for reproducibility
 
     group = parser.add_argument_group('Evaluation')
     group.add_argument('-k', '--n-folds', type=int, default=10,
-                       help='Number of cross-validation folds')
+                       help='Number of cross-validation folds')  # Number of folds for cross-validation
     group.add_argument('-n', '--n-examples', type=int, default=None,
-                       help='Restrict dataset to this many examples')
+                       help='Restrict dataset to this many examples')  # Limits dataset size
     group.add_argument('-p', '--prop-known', type=float, default=0.1,
-                       help='Proportion of initial labelled examples')
+                       help='Proportion of initial labelled examples')  # Initial labeled data proportion
     group.add_argument('-P', '--prop-eval', type=float, default=0.1,
-                       help='Proportion of the test set to evaluate the '
-                            'explanations on')
+                       help='Proportion of the test set to evaluate the explanations on')  # Test set proportion
     group.add_argument('-T', '--max-iters', type=int, default=100,
-                       help='Maximum number of learning iterations')
+                       help='Maximum number of learning iterations')  # Maximum training iterations
     group.add_argument('-e', '--eval-iters', type=int, default=10,
-                       help='Interval for evaluating performance on the '
-                       'evaluation set')
+                       help='Interval for evaluating performance on the evaluation set')  # Evaluation frequency
     group.add_argument('--passive', action='store_true',
-                       help='DEBUG: eval perfs using passive learning')
+                       help='DEBUG: eval perfs using passive learning')  # Toggle passive learning mode
 
     group = parser.add_argument_group('Interaction')
     group.add_argument('-E', '--start-expl-at', type=int, default=-1,
-                       help='Iteration at which corrections kick in')
+                       help='Iteration at which corrections kick in')  # When to start applying corrections
     group.add_argument('-C', '--corr-type', type=str, default=None,
-                       help='Type of correction feedback to use')
+                       help='Type of correction feedback to use')  # Correction feedback type
     group.add_argument('-F', '--n-features', type=int, default=10,
-                       help='Number of LIME features to present the user')
+                       help='Number of LIME features to present the user')  # LIME feature count
     group.add_argument('-S', '--n-samples', type=int, default=5000,
-                       help='Size of the LIME sampled dataset')
+                       help='Size of the LIME sampled dataset')  # LIME sample size
     group.add_argument('-K', '--kernel-width', type=float, default=0.75,
-                       help='LIME kernel width')
+                       help='LIME kernel width')  # LIME kernel width parameter
     group.add_argument('-R', '--lime-repeats', type=int, default=1,
-                       help='Number of times to re-run LIME')
+                       help='Number of times to re-run LIME')  # LIME repetition count
 
     group = parser.add_argument_group('Text')
     group.add_argument('--vectorizer', type=str, default=None,
-                       help='Text vectorizer to use')
+                       help='Text vectorizer to use')  # Specifies text vectorization method
     args = parser.parse_args()
 
     np.seterr(all='raise')

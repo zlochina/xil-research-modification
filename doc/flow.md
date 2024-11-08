@@ -59,4 +59,21 @@
 - [ ] 
 
 ## Flow
-1. 
+### Find where RRR is applied
+<!-- TODO: DELETE ❌✅ -->
+* Fashion_MNIST:
+    * ✅caipi/caipi (definition of classes used in parent directory modules):
+    * ✅caipi/rrr/bin:
+    * ✅caipi/rrr/data:
+    * ✅caipi/rrr/experiments (I guess its usage of rrr implementations):
+        1. 2D Intuition.ipynb: usage of MultilayerPerceptron, experminet with input gradients
+        2. 20 Newsgroups.ipynb: usage of MultilayerPerceptron, experiment with LIME
+        3. Decoy MNIST.ipynb: usage of MultilayerPerceptron, experiment with LIME
+        4. ...
+    * ✅caipi/rrr/rrr:
+        1. multilayer_perceptron.MultilayerPerceptron.objective: RRR implementation
+        2. tensorflow_perceptron.TensorflowPerceptron.loss_function
+    * ✅caipi:
+        1. caipi.caipi(): CounterExamples. `problem.query_label(i);corrections.update()`
+        2. versus-rrr (main flow): Usage of CE and RRR. Flow looks like comparisson of the algorithms
+<!-- * Plant_Phenotyping -->

@@ -8,7 +8,7 @@ import numpy.random.mtrand
 from matplotlib.cm import get_cmap
 from time import time
 from itertools import product
-from sklearn.datasets import fetch_mldata
+# from sklearn.datasets import fetch_mldata
 from skimage.color import gray2rgb, rgb2gray, hsv2rgb, rgb2hsv
 from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
