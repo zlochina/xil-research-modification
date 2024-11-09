@@ -2,13 +2,15 @@ from sklearn.utils import check_random_state
 
 
 class Problem:
-    def __init__(self,
-                 n_samples=5000,
-                 n_features=10,
-                 kernel_width=1.0,
-                 metric='euclidean',
-                 rng=None,
-                 **kwargs):
+    def __init__(
+        self,
+        n_samples=5000,
+        n_features=10,
+        kernel_width=1.0,
+        metric="euclidean",
+        rng=None,
+        **kwargs
+    ):
         self.rng = check_random_state(rng)
 
         self.n_samples = n_samples
@@ -32,7 +34,14 @@ class Problem:
         """Saves an explanation to file."""
         raise NotImplementedError()
 
-    def eval(self, learner, known_examples, test_examples, eval_examples,
-             t=None, basename=None):
+    def eval(
+        self,
+        learner,
+        known_examples,
+        test_examples,
+        eval_examples,
+        t=None,
+        basename=None,
+    ):
         """Evaluates the learner."""
         raise NotImplementedError()

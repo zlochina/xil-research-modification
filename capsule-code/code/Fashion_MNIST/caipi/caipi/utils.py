@@ -1,15 +1,16 @@
 import pickle
+
 import numpy as np
 import scipy as sp
 
 
 def load(path, **kwargs):
-    with open(path, 'rb') as fp:
+    with open(path, "rb") as fp:
         return pickle.load(fp, **kwargs)
 
 
 def dump(path, what, **kwargs):
-    with open(path, 'wb') as fp:
+    with open(path, "wb") as fp:
         pickle.dump(what, fp, **kwargs)
 
 
@@ -37,6 +38,7 @@ def _stack(arrays, d_stack, s_stack):
     else:
         return d_stack(arrays)
 
+
 vstack = lambda arrays: _stack(arrays, np.vstack, sp.sparse.vstack)
 hstack = lambda arrays: _stack(arrays, np.hstack, sp.sparse.hstack)
 
@@ -45,7 +47,7 @@ def setprfs(true, pred):
     matches = true & pred
     pr = len(matches) / len(pred) if len(pred) else 0.0
     rc = len(matches) / len(true) if len(true) else 0.0
-    f1 = 0.0 if pr + rc <= 0 else 2*pr*rc / (pr + rc)
+    f1 = 0.0 if pr + rc <= 0 else 2 * pr * rc / (pr + rc)
     return pr, rc, f1
 
 

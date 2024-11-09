@@ -1,11 +1,11 @@
 import numpy as np
-from sklearn.svm import LinearSVC
-from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.model_selection import StratifiedKFold, GridSearchCV
+from sklearn.linear_model import LogisticRegression, SGDClassifier
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
+from sklearn.svm import LinearSVC
 from sklearn.utils import check_random_state
 
-from .utils import densify, vstack, hstack
+from .utils import densify, hstack, vstack
 
 
 class ActiveLearner:
@@ -48,56 +48,62 @@ class ActiveLearner:
 
 
 class LinearLearner(ActiveLearner):
-    def __init__(self, *args, strategy='random', model='svm', C=None,
-                 sparse=False, **kwargs):
+    def __init__(
+        self, *args, strategy="random", model="svm", C=None, sparse=False, **kwargs
+    ):
 
         super().__init__(*args, **kwargs)
         self.model = model
 
         pm = None
-        if model == 'lr':
+        if model == "lr":
             # logistic regression
-            dm = pm = LogisticRegression(C=C or 1000,
-                                         penalty='l2',
-                                         multi_class='ovr',
-                                         fit_intercept=False,
-                                         random_state=0)
+            dm = pm = LogisticRegression(
+                C=C or 1000,
+                penalty="l2",
+                multi_class="ovr",
+                fit_intercept=False,
+                random_state=0,
+            )
 
-        elif model == 'svm':
+        elif model == "svm":
             # linear SVM (dense)
-            dm = LinearSVC(C=C or 1000,
-                           penalty='l2',
-                           loss='hinge',
-                           multi_class='ovr',
-                           random_state=0)
+            dm = LinearSVC(
+                C=C or 1000,
+                penalty="l2",
+                loss="hinge",
+                multi_class="ovr",
+                random_state=0,
+            )
 
-        elif model == 'l1svm':
+        elif model == "l1svm":
             # linear SVM (sparse)
-            dm = LinearSVC(C=C or 1,
-                           penalty='l1',
-                           loss='squared_hinge',
-                           dual=False,
-                           multi_class='ovr',
-                           random_state=0)
+            dm = LinearSVC(
+                C=C or 1,
+                penalty="l1",
+                loss="squared_hinge",
+                dual=False,
+                multi_class="ovr",
+                random_state=0,
+            )
 
-        elif model == 'elastic':
+        elif model == "elastic":
             # elastic net (kinda sparse)
-            dm = SGDClassifier(penalty='elasticnet',
-                               loss='hinge',
-                               l1_ratio=0.15,
-                               random_state=0)
+            dm = SGDClassifier(
+                penalty="elasticnet", loss="hinge", l1_ratio=0.15, random_state=0
+            )
 
         if pm is None:
             cv = StratifiedKFold(random_state=0)
-            pm = CalibratedClassifierCV(dm, method='sigmoid', cv=cv)
+            pm = CalibratedClassifierCV(dm, method="sigmoid", cv=cv)
 
         self._decision_model = dm
         self._prob_model = pm
 
         self.select_query = {
-            'random': self._select_at_random,
-            'least-confident': self._select_least_confident,
-            'least-margin': self._select_least_margin,
+            "random": self._select_at_random,
+            "least-confident": self._select_least_confident,
+            "least-margin": self._select_least_margin,
         }[strategy]
 
     def _select_at_random(self, problem, examples):

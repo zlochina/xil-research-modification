@@ -3,23 +3,27 @@ Created on Thu Oct 26 11:06:51 2017
 
 @author: Utku Ozbulak - github.com/utkuozbulak
 """
-from PIL import Image
+
+import sys
+
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import sys
 import torch.nn as nn
-import matplotlib.pyplot as plt
+from PIL import Image
 
-sys.path.insert(0, 'libs')
-from .misc_functions_rgb import get_example_params, save_class_activation_images
+sys.path.insert(0, "libs")
+from .misc_functions_rgb import (get_example_params,
+                                 save_class_activation_images)
 
 torch.set_num_threads(2)
 
 
-class CamExtractor():
+class CamExtractor:
     """
-        Extracts cam features from the model
+    Extracts cam features from the model
     """
+
     def __init__(self, model, target_layer):
         self.model = model
         self.target_layer = target_layer
@@ -30,7 +34,7 @@ class CamExtractor():
 
     def forward_pass_on_convolutions(self, x):
         """
-            Does a forward pass on convolutions, hooks the function at given layer
+        Does a forward pass on convolutions, hooks the function at given layer
         """
         conv_output = None
         for module_pos, module in self.model.features._modules.items():
@@ -44,7 +48,7 @@ class CamExtractor():
 
     def forward_pass(self, x):
         """
-            Does a full forward pass on the model
+        Does a full forward pass on the model
         """
         # Forward pass on the convolutions
         conv_output, x = self.forward_pass_on_convolutions(x)
@@ -54,10 +58,11 @@ class CamExtractor():
         return conv_output, x
 
 
-class GradCam():
+class GradCam:
     """
-        Produces class activation map
+    Produces class activation map
     """
+
     def __init__(self, model, target_layer, device, hsi=False):
         self.model = model
         self.model.eval()
@@ -75,7 +80,9 @@ class GradCam():
             target_class = np.argmax(model_output.data.numpy())
 
         # Target for backprop
-        one_hot_output = torch.FloatTensor(1, model_output.size()[-1]).zero_().to(self.device)
+        one_hot_output = (
+            torch.FloatTensor(1, model_output.size()[-1]).zero_().to(self.device)
+        )
         one_hot_output[0][target_class] = 1
         # Zero grads
         self.model.features.zero_grad()
@@ -87,7 +94,9 @@ class GradCam():
         # Get convolution outputs
         target = conv_output.data.cpu().numpy()[0]
         # Get weights from gradients
-        weights = np.mean(guided_gradients, axis=(1, 2))  # Take averages for each gradient
+        weights = np.mean(
+            guided_gradients, axis=(1, 2)
+        )  # Take averages for each gradient
         # Create empty numpy array for cam
         cam = np.ones(target.shape[1:], dtype=np.float32)
         # Multiply each weight with its conv output and then, sum
@@ -96,8 +105,14 @@ class GradCam():
         cam = np.maximum(cam, 0)
         cam = (cam - np.min(cam)) / (np.max(cam) - np.min(cam))  # Normalize between 0-1
         cam = np.uint8(cam * 255)  # Scale between 0-255 to visualize
-        cam = np.uint8(Image.fromarray(cam).resize((input_image.shape[2],
-                       input_image.shape[3]), Image.ANTIALIAS))/255
+        cam = (
+            np.uint8(
+                Image.fromarray(cam).resize(
+                    (input_image.shape[2], input_image.shape[3]), Image.ANTIALIAS
+                )
+            )
+            / 255
+        )
         # ^ I am extremely unhappy with this line. Originally resizing was done in cv2 which
         # supports resizing numpy matrices with antialiasing, however,
         # when I moved the repository to PIL, this option was out of the window.
@@ -107,15 +122,16 @@ class GradCam():
         return cam
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Get params
     target_example = 0  # Snake
-    (original_image, prep_img, target_class, file_name_to_export, pretrained_model) =\
+    (original_image, prep_img, target_class, file_name_to_export, pretrained_model) = (
         get_example_params(target_example)
+    )
     # Grad cam
     grad_cam = GradCam(pretrained_model, target_layer=11)
     # Generate cam mask
     cam = grad_cam.generate_cam(prep_img, target_class)
     # Save mask
     save_class_activation_images(original_image, cam, file_name_to_export)
-    print('Grad cam completed')
+    print("Grad cam completed")

@@ -12,21 +12,27 @@ def ELUCons(elu, nchan):
         return nn.ELU(inplace=True)
     else:
         return nn.ReLU(inplace=False)
-        #return nn.PReLU(nchan)
+        # return nn.PReLU(nchan)
 
 
 class ContBatchNorm3d(nn.modules.batchnorm._BatchNorm):
     def _check_input_dim(self, input):
         if input.dim() != 5:
-            raise ValueError('expected 5D input (got {}D input)'
-                             .format(input.dim()))
+            raise ValueError("expected 5D input (got {}D input)".format(input.dim()))
         super(ContBatchNorm3d, self)._check_input_dim(input)
 
     def forward(self, input):
         self._check_input_dim(input)
         return F.batch_norm(
-            input, self.running_mean, self.running_var, self.weight, self.bias,
-            True, self.momentum, self.eps)
+            input,
+            self.running_mean,
+            self.running_var,
+            self.weight,
+            self.bias,
+            True,
+            self.momentum,
+            self.eps,
+        )
 
 
 class LUConv(nn.Module):
@@ -57,8 +63,7 @@ class InputTransition(nn.Module):
 
     def forward(self, x):
         out = self.bn1(self.conv1(x))
-        x16 = torch.cat((x, x, x, x, x, x, x, x,
-                         x, x, x, x, x, x, x, x), 1)
+        x16 = torch.cat((x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x), 1)
 
         out = self.relu1(torch.add(out, x16))
         return out
@@ -90,7 +95,9 @@ class DownTransition(nn.Module):
 class UpTransition(nn.Module):
     def __init__(self, inChans, outChans, nConvs, elu, dropout=False):
         super(UpTransition, self).__init__()
-        self.up_conv = nn.ConvTranspose3d(inChans, outChans // 2, kernel_size=2, stride=2)
+        self.up_conv = nn.ConvTranspose3d(
+            inChans, outChans // 2, kernel_size=2, stride=2
+        )
         self.bn1 = nn.BatchNorm3d(outChans // 2)  # ContBatchNorm3d(outChans // 2)
         self.do1 = passthrough
         self.do2 = nn.Dropout3d()
@@ -148,13 +155,13 @@ class ConvNetDefault(nn.Module):
                 DownTransition(32, 2, elu, dropout=True),
                 DownTransition(64, 3, elu, dropout=True),
                 DownTransition(128, 2, elu, dropout=True),
-                nn.AvgPool3d(kernel_size=(4, 1, 1))
+                nn.AvgPool3d(kernel_size=(4, 1, 1)),
             )
             self.classifier = nn.Sequential(
                 nn.Linear(256 * 1 * 13 * 13, 512),
                 nn.ReLU(),
                 nn.Dropout(),
-                nn.Linear(512, 2)
+                nn.Linear(512, 2),
             )
         else:
             self.last_wv = 4
@@ -169,7 +176,7 @@ class ConvNetDefault(nn.Module):
                 nn.Linear(256 * 4 * 13 * 13, 512),
                 nn.ReLU(),
                 nn.Dropout(),
-                nn.Linear(512, 2)
+                nn.Linear(512, 2),
             )
 
     def forward(self, x):

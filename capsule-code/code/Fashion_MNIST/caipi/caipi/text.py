@@ -1,19 +1,20 @@
-import numpy as np
-import re, blessings
-from time import time
-from os.path import join
+import re
 from collections import defaultdict
+from os.path import join
+from time import time
+
+import blessings
+import numpy as np
+from gensim.models.keyedvectors import KeyedVectors
+from lime.lime_text import LimeTextExplainer
 from scipy.sparse import csr_matrix
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from sklearn.pipeline import make_pipeline
 from sklearn.linear_model import Ridge
 from sklearn.metrics import precision_recall_fscore_support as prfs
+from sklearn.pipeline import make_pipeline
 from sklearn.utils import check_random_state
-from lime.lime_text import LimeTextExplainer
-from gensim.models.keyedvectors import KeyedVectors
 
-from . import Problem, load, densify, vstack, hstack
-
+from . import Problem, densify, hstack, load, vstack
 
 _TERM = blessings.Terminal()
 
@@ -36,8 +37,7 @@ class Normalizer:
             new_X.append(x.ravel() / norm)
         new_X = np.array(new_X)
         if append_value is not None:
-            new_X = np.hstack([new_X,
-                               append_value * np.ones((new_X.shape[0], 1))])
+            new_X = np.hstack([new_X, append_value * np.ones((new_X.shape[0], 1))])
         new_X = csr_matrix(np.array(new_X))
         if return_norms:
             return new_X, ret_norms
@@ -47,7 +47,7 @@ class Normalizer:
 class Word2VecVectorizer:
     def __init__(self, path):
         self.word2vec = KeyedVectors.load_word2vec_format(path, binary=True)
-        self.n_features = self.word2vec.wv['the'].shape[0]
+        self.n_features = self.word2vec.wv["the"].shape[0]
         self.no_embedding = set()
 
     def _embed_document(self, text):
@@ -60,8 +60,11 @@ class Word2VecVectorizer:
                 if word not in self.no_embedding:
                     print('Warning: could not embed "{}"'.format(word))
                     self.no_embedding.add(word)
-        return (np.mean(word_vectors, axis=0) if len(word_vectors) else
-                np.zeros(self.n_features))
+        return (
+            np.mean(word_vectors, axis=0)
+            if len(word_vectors)
+            else np.zeros(self.n_features)
+        )
 
     def fit(self, docs, y=None):
         return self
@@ -72,19 +75,19 @@ class Word2VecVectorizer:
 
 class TextProblem(Problem):
     def __init__(self, **kwargs):
-        self.class_names = kwargs.pop('class_names')
-        self.y = kwargs.pop('y')
-        self.docs = kwargs.pop('docs')
-        self.processed_docs = kwargs.pop('processed_docs')
-        self.explanations = kwargs.pop('explanations')
-        self.lime_repeats = kwargs.pop('lime_repeats', 1)
-        n_examples = kwargs.pop('n_examples', None)
-        self.corr_type = kwargs.pop('corr_type', 'replace-expl') or 'replace-expl'
-        self.vect_type = kwargs.pop('vect_type', 'glove')
+        self.class_names = kwargs.pop("class_names")
+        self.y = kwargs.pop("y")
+        self.docs = kwargs.pop("docs")
+        self.processed_docs = kwargs.pop("processed_docs")
+        self.explanations = kwargs.pop("explanations")
+        self.lime_repeats = kwargs.pop("lime_repeats", 1)
+        n_examples = kwargs.pop("n_examples", None)
+        self.corr_type = kwargs.pop("corr_type", "replace-expl") or "replace-expl"
+        self.vect_type = kwargs.pop("vect_type", "glove")
         super().__init__(**kwargs)
 
         if n_examples is not None:
-            rng = check_random_state(kwargs.get('rng', None))
+            rng = check_random_state(kwargs.get("rng", None))
             perm = rng.permutation(len(self.y))[:n_examples]
             self.y = self.y[perm]
             self.docs = [self.docs[i] for i in perm]
@@ -92,28 +95,31 @@ class TextProblem(Problem):
             self.explanations = [self.explanations[i] for i in perm]
 
         self.normalizer = Normalizer()
-        if self.vect_type == 'binary':
-            self.vectorizer = CountVectorizer(lowercase=False, binary=True) \
-                                  .fit(self.processed_docs)
-        elif self.vect_type == 'tfidf':
-            self.vectorizer = TfidfVectorizer(lowercase=False) \
-                                  .fit(self.processed_docs)
-        elif self.vect_type == 'glove':
-            path = join('data', 'word2vec_glove.6B.300d.bin')
+        if self.vect_type == "binary":
+            self.vectorizer = CountVectorizer(lowercase=False, binary=True).fit(
+                self.processed_docs
+            )
+        elif self.vect_type == "tfidf":
+            self.vectorizer = TfidfVectorizer(lowercase=False).fit(self.processed_docs)
+        elif self.vect_type == "glove":
+            path = join("data", "word2vec_glove.6B.300d.bin")
             self.vectorizer = Word2VecVectorizer(path)
-        elif self.vect_type == 'google-news':
-            path = join('data', 'GoogleNews-vectors-negative300.bin')
+        elif self.vect_type == "google-news":
+            path = join("data", "GoogleNews-vectors-negative300.bin")
             self.vectorizer = Word2VecVectorizer(path)
         else:
             raise ValueError('unknown vect_type "{}"'.format(self.vect_type))
 
         self.X = self.vectorizer.transform(self.processed_docs)
-        self.X, self.norms = self.normalizer.transform(self.X,
-                                                       return_norms=True,
-                                                       append_value=1)
+        self.X, self.norms = self.normalizer.transform(
+            self.X, return_norms=True, append_value=1
+        )
 
-        self.explainable = {i for i in range(len(self.y))
-                            if self.explanations[i] is not None and len(self.explanations[i])}
+        self.explainable = {
+            i
+            for i in range(len(self.y))
+            if self.explanations[i] is not None and len(self.explanations[i])
+        }
 
     def _masks_to_expl(self, i):
         """Turns a list of word masks (which might highlight repeated words)
@@ -132,7 +138,7 @@ class TextProblem(Problem):
             n_features = 1
         else:
             true_expl = self._masks_to_expl(i)
-            n_features = max(len(true_expl), 1) # XXX FIXME XXX
+            n_features = max(len(true_expl), 1)  # XXX FIXME XXX
 
         pipeline = make_pipeline(self.vectorizer, self.normalizer, learner)
 
@@ -141,13 +147,18 @@ class TextProblem(Problem):
 
             t = time()
             local_model = Ridge(alpha=1, fit_intercept=True, random_state=0)
-            expl = explainer.explain_instance(self.processed_docs[i],
-                                              pipeline.predict_proba,
-                                              model_regressor=local_model,
-                                              num_features=n_features,
-                                              num_samples=self.n_samples)
-            print('  LIME {}/{} took {:3.2f}s'.format(r + 1, self.lime_repeats,
-                                                 time() - t))
+            expl = explainer.explain_instance(
+                self.processed_docs[i],
+                pipeline.predict_proba,
+                model_regressor=local_model,
+                num_features=n_features,
+                num_samples=self.n_samples,
+            )
+            print(
+                "  LIME {}/{} took {:3.2f}s".format(
+                    r + 1, self.lime_repeats, time() - t
+                )
+            )
 
             for word, coeff in expl.as_list():
                 counts[(word, int(np.sign(coeff)))] += 1
@@ -173,62 +184,68 @@ class TextProblem(Problem):
         pred_words = {word for word, _ in pred_expl}
         fp_words = pred_words - true_words
 
-        print('original =', ' '.join(all_words))
-        if self.corr_type == 'replace-expl':
-            correction = ' '.join(true_words)
-            print('correction =', correction)
+        print("original =", " ".join(all_words))
+        if self.corr_type == "replace-expl":
+            correction = " ".join(true_words)
+            print("correction =", correction)
             print()
             self.X[i] = self.normalizer.transform(
-                            self.vectorizer.transform([correction]))[0]
+                self.vectorizer.transform([correction])
+            )[0]
             self.processed_docs[i] = correction
             extra_examples = set()
 
-        elif self.corr_type == 'replace-no-fp':
-            correction = ' '.join(all_words - fp_words)
-            print('correction =', correction)
+        elif self.corr_type == "replace-no-fp":
+            correction = " ".join(all_words - fp_words)
+            print("correction =", correction)
             print()
             self.X[i] = self.normalizer.transform(
-                            self.vectorizer.transform([correction]))[0]
+                self.vectorizer.transform([correction])
+            )[0]
             self.processed_docs[i] = correction
             extra_examples = set()
 
-        elif self.corr_type == 'add-contrast':
+        elif self.corr_type == "add-contrast":
             # NOTE make sure to set fit_intercept=False!
             words = np.array(self.processed_docs[i].split())
 
             corrections = []
             for mask in self.explanations[i]:
                 masked_indices = np.where(mask)[0]
-                rationale = ' '.join(words[masked_indices])
+                rationale = " ".join(words[masked_indices])
                 corrections.append(rationale)
 
             X_corrections = self.vectorizer.transform(corrections)
-            X_corrections = self.normalizer.transform(X_corrections,
-                                                      norms=[self.norms[i] for _ in corrections],
-                                                      append_value=0)
+            X_corrections = self.normalizer.transform(
+                X_corrections,
+                norms=[self.norms[i] for _ in corrections],
+                append_value=0,
+            )
 
-            extra_examples = set(range(self.X.shape[0],
-                                       self.X.shape[0] + len(corrections)))
+            extra_examples = set(
+                range(self.X.shape[0], self.X.shape[0] + len(corrections))
+            )
 
-        elif self.corr_type == 'add-contrast-fp':
+        elif self.corr_type == "add-contrast-fp":
             # NOTE make sure to set fit_intercept=False!
             words = np.array(self.processed_docs[i].split())
 
-            correction = ' '.join(word for word in words
-                                  if word not in fp_words)
+            correction = " ".join(word for word in words if word not in fp_words)
             corrections = [correction]
 
             X_corrections = self.vectorizer.transform(corrections)
-            X_corrections = self.normalizer.transform(X_corrections,
-                                                      norms=[self.norms[i] for _ in corrections],
-                                                      append_value=0)
+            X_corrections = self.normalizer.transform(
+                X_corrections,
+                norms=[self.norms[i] for _ in corrections],
+                append_value=0,
+            )
 
-            extra_examples = set(range(self.X.shape[0],
-                                       self.X.shape[0] + len(corrections)))
+            extra_examples = set(
+                range(self.X.shape[0], self.X.shape[0] + len(corrections))
+            )
 
         else:
-            raise ValueError('unknown correction type "{}"'.format(
-                                 self.corr_type))
+            raise ValueError('unknown correction type "{}"'.format(self.corr_type))
 
         if len(extra_examples):
             y_corrections = np.array([pred_y] * len(corrections))
@@ -237,8 +254,7 @@ class TextProblem(Problem):
 
         return extra_examples
 
-    def _eval_expl(self, learner, known_examples, eval_examples,
-                   t=None, basename=None):
+    def _eval_expl(self, learner, known_examples, eval_examples, t=None, basename=None):
         if eval_examples is None:
             return -1, -1, -1
 
@@ -254,8 +270,10 @@ class TextProblem(Problem):
             # those depend on whether the prediction is wrong
 
             true_words = {(word, np.sign(coeff)) for word, coeff in true_expl}
-            pred_words = {(word, np.sign(coeff) if true_y == pred_y else -np.sign(coeff))
-                          for word, coeff in pred_expl}
+            pred_words = {
+                (word, np.sign(coeff) if true_y == pred_y else -np.sign(coeff))
+                for word, coeff in pred_expl
+            }
 
             matches = true_words & pred_words
             pr = len(matches) / len(pred_words) if len(pred_words) else 0.0
@@ -266,22 +284,28 @@ class TextProblem(Problem):
             if basename is None:
                 continue
 
-            self.save_expl(basename + '_{}_{}.txt'.format(i, t),
-                           i, pred_y, pred_expl)
-            self.save_expl(basename + '_{}_true.txt'.format(i),
-                           i, true_y, true_expl)
+            self.save_expl(basename + "_{}_{}.txt".format(i, t), i, pred_y, pred_expl)
+            self.save_expl(basename + "_{}_true.txt".format(i), i, true_y, true_expl)
 
         return np.mean(perfs, axis=0)
 
-    def eval(self, learner, known_examples, test_examples, eval_examples,
-             t=None, basename=None):
-        pred_perfs = prfs(self.y[test_examples],
-                          learner.predict(self.X[test_examples]),
-                          average='weighted')[:3]
-        expl_perfs = self._eval_expl(learner,
-                                     known_examples,
-                                     eval_examples,
-                                     t=t, basename=basename)
+    def eval(
+        self,
+        learner,
+        known_examples,
+        test_examples,
+        eval_examples,
+        t=None,
+        basename=None,
+    ):
+        pred_perfs = prfs(
+            self.y[test_examples],
+            learner.predict(self.X[test_examples]),
+            average="weighted",
+        )[:3]
+        expl_perfs = self._eval_expl(
+            learner, known_examples, eval_examples, t=t, basename=basename
+        )
         return np.array(tuple(pred_perfs) + tuple(expl_perfs))
 
     @staticmethod
@@ -293,50 +317,54 @@ class TextProblem(Problem):
             matches.reverse()
             for match in matches:
                 start = match.start()
-                text = text[:start] + colored_word + text[start+len(word):]
+                text = text[:start] + colored_word + text[start + len(word) :]
         return text
 
     def save_expl(self, path, i, pred_y, expl):
-        with open(path, 'wt') as fp:
-            fp.write('true y: ' + self.class_names[self.y[i]] + '\n')
-            fp.write('pred y: ' + self.class_names[pred_y] + '\n')
-            fp.write(80 * '-' + '\n')
-            #fp.write(self._highlight_words(self.docs[i], expl))
-            fp.write('\n' + 80 * '-' + '\n')
-            fp.write('explanation:\n')
+        with open(path, "wt") as fp:
+            fp.write("true y: " + self.class_names[self.y[i]] + "\n")
+            fp.write("pred y: " + self.class_names[pred_y] + "\n")
+            fp.write(80 * "-" + "\n")
+            # fp.write(self._highlight_words(self.docs[i], expl))
+            fp.write("\n" + 80 * "-" + "\n")
+            fp.write("explanation:\n")
             for word, sign in sorted(expl):
-                fp.write('{:32s} : {:3.1f}\n'.format(word, sign))
+                fp.write("{:32s} : {:3.1f}\n".format(word, sign))
 
 
 class ReviewsProblem(TextProblem):
     def __init__(self, **kwargs):
 
-        path = join('data', 'review_polarity_rationales.pickle')
+        path = join("data", "review_polarity_rationales.pickle")
         try:
             dataset = load(path)
         except:
-            raise RuntimeError('Run the data preparation script first!')
+            raise RuntimeError("Run the data preparation script first!")
 
-        super().__init__(class_names=['neg', 'pos'],
-                         y=dataset['y'],
-                         docs=dataset['docs'],
-                         processed_docs=dataset['docs'],
-                         explanations=dataset['explanations'],
-                         **kwargs)
+        super().__init__(
+            class_names=["neg", "pos"],
+            y=dataset["y"],
+            docs=dataset["docs"],
+            processed_docs=dataset["docs"],
+            explanations=dataset["explanations"],
+            **kwargs
+        )
 
 
 class NewsgroupsProblem(TextProblem):
     def __init__(self, **kwargs):
 
-        path = join('data', 'newsgroups.pickle')
+        path = join("data", "newsgroups.pickle")
         try:
             dataset = load(path)
         except:
-            raise RuntimeError('Run the data preparation script first!')
+            raise RuntimeError("Run the data preparation script first!")
 
-        super().__init__(class_names=['neg', 'pos'],
-                         y=dataset['y'],
-                         docs=dataset['docs'],
-                         processed_docs=dataset['docs'],
-                         explanations=dataset['explanations'],
-                         **kwargs)
+        super().__init__(
+            class_names=["neg", "pos"],
+            y=dataset["y"],
+            docs=dataset["docs"],
+            processed_docs=dataset["docs"],
+            explanations=dataset["explanations"],
+            **kwargs
+        )

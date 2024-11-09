@@ -13,37 +13,41 @@ for generating grad cams from a specific model:
 CUDA_VISIBLE_DEVICES=3 python3 main_rgb.py --lr 0.00005 --batch-size 32 --n-epochs 10 --n-rotations 1 --n-cvruns 5 --cv-run 2 --norm --rrr --l2-grads 1 --gen-cams --fp-save path/to/save --fp-data path/to/data --cp-fname 'vgg_cvnum_2_epoch_1_evalbalacc_5000_trainraloss_8.8632_trainrrrloss_3.9064_besttestacc.pth'
 
 """
+
 # disable multithreading
 import os
-os.environ["OMP_NUM_THREADS"] = "4" # export OMP_NUM_THREADS=4
-os.environ["OPENBLAS_NUM_THREADS"] = "4" # export OPENBLAS_NUM_THREADS=4
-os.environ["MKL_NUM_THREADS"] = "4" # export MKL_NUM_THREADS=6
-os.environ["VECLIB_MAXIMUM_THREADS"] = "4" # export VECLIB_MAXIMUM_THREADS=4
-os.environ["NUMEXPR_NUM_THREADS"] = "4" # export NUMEXPR_NUM_THREADS=6
 
-import glob
+os.environ["OMP_NUM_THREADS"] = "4"  # export OMP_NUM_THREADS=4
+os.environ["OPENBLAS_NUM_THREADS"] = "4"  # export OPENBLAS_NUM_THREADS=4
+os.environ["MKL_NUM_THREADS"] = "4"  # export MKL_NUM_THREADS=6
+os.environ["VECLIB_MAXIMUM_THREADS"] = "4"  # export VECLIB_MAXIMUM_THREADS=4
+os.environ["NUMEXPR_NUM_THREADS"] = "4"  # export NUMEXPR_NUM_THREADS=6
+
 import argparse
-import numpy as np
-import os
-import sys
-import pickle
 import errno
+import glob
+import os
+import pickle
+import sys
+import time
+
+import matplotlib.pyplot as plt
+import numpy as np
 import setproctitle
 import torchvision.models as models
-import time
-import matplotlib.pyplot as plt
-from scipy import ndimage as ndi
-from torch.optim.lr_scheduler import ReduceLROnPlateau, CyclicLR, StepLR, MultiStepLR
 from PIL import ImageEnhance
-from torch import nn
+from rgb_utils.gradcam_rgb import GradCam
+from rgb_utils.misc_functions_rgb import save_class_activation_images
+from rgb_utils.rrr_loss_rgb import rrr_loss_function  # RRRLoss
+from rgb_utils.utils_rgb import *
+from scipy import ndimage as ndi
 from skimage import feature
 from sklearn import preprocessing
 from sklearn.metrics import balanced_accuracy_score, confusion_matrix
-from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
-from rgb_utils.gradcam_rgb import GradCam
-from rgb_utils.misc_functions_rgb import save_class_activation_images
-from rgb_utils.rrr_loss_rgb import rrr_loss_function #RRRLoss
-from rgb_utils.utils_rgb import *
+from sklearn.model_selection import StratifiedShuffleSplit, train_test_split
+from torch import nn
+from torch.optim.lr_scheduler import (CyclicLR, MultiStepLR, ReduceLROnPlateau,
+                                      StepLR)
 
 np.set_printoptions(precision=3)
 
@@ -51,41 +55,110 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 np.random.seed(1)
 
-parser = argparse.ArgumentParser(description='PyTorch CNNs')
-parser.add_argument('--batch-size', type=int, default=1, metavar='N',
-                    help='input batch size for training (default: 1)')
-parser.add_argument('--lr', type=float, default=0.0001, metavar='N',
-                    help='learning rate for gradient descent (default: 0.0001)')
-parser.add_argument('--n-epochs', type=int, default=5, metavar='N',
-                    help='number of epochs to train (default: 5)')
-parser.add_argument('--no-cuda', action='store_true', default=False,
-                    help='enables CUDA training (default: False)')
-parser.add_argument('--seed', type=int, default=1, metavar='S',
-                    help='random seed (default: 1)')
-parser.add_argument('--n-rotations', type=int, default=1, metavar='N',
-                    help='the number of rotations per image')
-parser.add_argument('--n-cvruns', type=int, default=1, metavar='N',
-                    help='the number of cross validation splits')
-parser.add_argument('--cv-run', type=int, default=1, metavar='N',
-                    help='the current cross validation split, must be between 0 and (n-cvruns - 1)')
-parser.add_argument('--l2-grads', type=float, default=1, metavar='N',
-                    help='regularization parameter for the right reasons part in rrr loss')
-parser.add_argument('--rrr', action='store_true', default=False,
-                    help='whether to train using the right for right reasons loss')
-parser.add_argument('--norm', action='store_true', default=False,
-                    help='whether to normalize the data')
-parser.add_argument('--train', action='store_true', default=False,
-                    help='whether to run the training process on the data')
-parser.add_argument('--test', action='store_true', default=False,
-                    help='whether to evaluate the performance of a model checkpoint on the test data')
-parser.add_argument('--gen-cams', action='store_true', default=False,
-                    help='whether to normalize the data')
-parser.add_argument('--fp-ckpt', type=str, default='',
-                    help='please specifiy the path of the model checkpoint')
-parser.add_argument('--fp-data', type=str, required=True,
-                    help='please specifiy the path to the data folder')
-parser.add_argument('--fp-save', type=str, required=True,
-                    help='please specifiy the path to the folder in which files will be saved')
+parser = argparse.ArgumentParser(description="PyTorch CNNs")
+parser.add_argument(
+    "--batch-size",
+    type=int,
+    default=1,
+    metavar="N",
+    help="input batch size for training (default: 1)",
+)
+parser.add_argument(
+    "--lr",
+    type=float,
+    default=0.0001,
+    metavar="N",
+    help="learning rate for gradient descent (default: 0.0001)",
+)
+parser.add_argument(
+    "--n-epochs",
+    type=int,
+    default=5,
+    metavar="N",
+    help="number of epochs to train (default: 5)",
+)
+parser.add_argument(
+    "--no-cuda",
+    action="store_true",
+    default=False,
+    help="enables CUDA training (default: False)",
+)
+parser.add_argument(
+    "--seed", type=int, default=1, metavar="S", help="random seed (default: 1)"
+)
+parser.add_argument(
+    "--n-rotations",
+    type=int,
+    default=1,
+    metavar="N",
+    help="the number of rotations per image",
+)
+parser.add_argument(
+    "--n-cvruns",
+    type=int,
+    default=1,
+    metavar="N",
+    help="the number of cross validation splits",
+)
+parser.add_argument(
+    "--cv-run",
+    type=int,
+    default=1,
+    metavar="N",
+    help="the current cross validation split, must be between 0 and (n-cvruns - 1)",
+)
+parser.add_argument(
+    "--l2-grads",
+    type=float,
+    default=1,
+    metavar="N",
+    help="regularization parameter for the right reasons part in rrr loss",
+)
+parser.add_argument(
+    "--rrr",
+    action="store_true",
+    default=False,
+    help="whether to train using the right for right reasons loss",
+)
+parser.add_argument(
+    "--norm", action="store_true", default=False, help="whether to normalize the data"
+)
+parser.add_argument(
+    "--train",
+    action="store_true",
+    default=False,
+    help="whether to run the training process on the data",
+)
+parser.add_argument(
+    "--test",
+    action="store_true",
+    default=False,
+    help="whether to evaluate the performance of a model checkpoint on the test data",
+)
+parser.add_argument(
+    "--gen-cams",
+    action="store_true",
+    default=False,
+    help="whether to normalize the data",
+)
+parser.add_argument(
+    "--fp-ckpt",
+    type=str,
+    default="",
+    help="please specifiy the path of the model checkpoint",
+)
+parser.add_argument(
+    "--fp-data",
+    type=str,
+    required=True,
+    help="please specifiy the path to the data folder",
+)
+parser.add_argument(
+    "--fp-save",
+    type=str,
+    required=True,
+    help="please specifiy the path to the folder in which files will be saved",
+)
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -101,21 +174,27 @@ torch.set_num_threads(4)
 
 def create_args():
     if args.gen_cams & (args.fp_ckpt is None):
-        raise AssertionError('please specify the filepath of the model checkpoint file to use for generating the cams!')
+        raise AssertionError(
+            "please specify the filepath of the model checkpoint file to use for generating the cams!"
+        )
     if args.test & (args.fp_ckpt is None):
-        raise AssertionError('please specify the filepath of the model checkpoint file to use for evaluating!')
+        raise AssertionError(
+            "please specify the filepath of the model checkpoint file to use for evaluating!"
+        )
     if args.train & args.test:
-        raise AssertionError('please specify either train or test, the model is automatically evaluated in the '
-                             'training process')
+        raise AssertionError(
+            "please specify either train or test, the model is automatically evaluated in the "
+            "training process"
+        )
 
     args.num_classes = 2
 
     args.model_name = "vgg"
 
     if args.cuda:
-        args.device = 'cuda'
+        args.device = "cuda"
     else:
-        args.device = 'cpu'
+        args.device = "cpu"
 
     args.reduction = torch.sum
 
@@ -126,7 +205,7 @@ def create_args():
 
     # extension for file saving
     if not args.rrr:
-        args.fp_mask = None # if the model is not to be trained using the masks
+        args.fp_mask = None  # if the model is not to be trained using the masks
         args.train_config = "default"
     else:
         args.fp_mask = "data/plants_hs/background_labels/preprocessed_masks.pyu"
@@ -136,7 +215,7 @@ def create_args():
             args.train_config = f"rrr_l2grads_{int(args.l2_grads)}"
 
     # set path to save torchvision models
-    os.environ['TORCH_HOME'] = f"data/plant_rgb/{args.model_name}_pretrained/"
+    os.environ["TORCH_HOME"] = f"data/plant_rgb/{args.model_name}_pretrained/"
 
     # print("\nCurrent argument parameters: \n")
     # print("\n".join("{}: {}".format(k, v) for k, v in vars(args).items()))
@@ -155,7 +234,9 @@ def get_data_by_split():
         test_samples: list of strings, containing the sample id of all test samples
     """
     # list of train and test sample ids for corresponding cv run
-    with open(f"code/Plant_Phenotyping/rgb_dataset_splits/train_{args.cv_run}.txt") as f:
+    with open(
+        f"code/Plant_Phenotyping/rgb_dataset_splits/train_{args.cv_run}.txt"
+    ) as f:
         train_samples = f.read().splitlines()
     with open(f"code/Plant_Phenotyping/rgb_dataset_splits/test_{args.cv_run}.txt") as f:
         test_samples = f.read().splitlines()
@@ -165,11 +246,15 @@ def get_data_by_split():
     train_ids = []
     test_ids = []
     for i, sample_id in enumerate(train_samples):
-        filenames_allfiles.append(f"{args.fp_data}/{sample_id.split('_')[0]}/{sample_id}.JPEG")
+        filenames_allfiles.append(
+            f"{args.fp_data}/{sample_id.split('_')[0]}/{sample_id}.JPEG"
+        )
         train_ids.append(i)
     last_index_train = len(train_samples)
     for i, sample_id in enumerate(test_samples):
-        filenames_allfiles.append(f"{args.fp_data}/{sample_id.split('_')[0]}/{sample_id}.JPEG")
+        filenames_allfiles.append(
+            f"{args.fp_data}/{sample_id.split('_')[0]}/{sample_id}.JPEG"
+        )
         test_ids.append(i + last_index_train)
 
     assert len(train_samples) == len(train_ids)
@@ -226,8 +311,7 @@ def load_model(num_classes, feature_extract=False, use_pretrained=True):
     input_size = 0
 
     if args.model_name == "vgg":
-        """ VGG16
-        """
+        """VGG16"""
         model_ft = models.vgg16(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier[6].in_features
@@ -253,7 +337,7 @@ def train(model, train_loader, criterion, optimizer, class_weights=None, verbose
 
     def forward_pass_on_convolutions(x, target_layer):
         """
-            Does a forward pass on convolutions, hooks the function at given layer
+        Does a forward pass on convolutions, hooks the function at given layer
         """
         if args.model_name == "vgg":
             for module_pos, module in x.features._modules.items():
@@ -291,10 +375,16 @@ def train(model, train_loader, criterion, optimizer, class_weights=None, verbose
             right_answer_loss = torch.tensor(0)
             right_reason_loss = torch.tensor(0)
         else:
-            loss, right_answer_loss, right_reason_loss = rrr_loss_function(A=masks, X=model.target_output, y=y_train,
-                                                                           logits=output, class_weights=class_weights,
-                                                                           criterion=criterion, l2_grads=args.l2_grads,
-                                                                           reduce_func=args.reduction)
+            loss, right_answer_loss, right_reason_loss = rrr_loss_function(
+                A=masks,
+                X=model.target_output,
+                y=y_train,
+                logits=output,
+                class_weights=class_weights,
+                criterion=criterion,
+                l2_grads=args.l2_grads,
+                reduce_func=args.reduction,
+            )
 
         loss.backward()
         optimizer.step()
@@ -304,14 +394,23 @@ def train(model, train_loader, criterion, optimizer, class_weights=None, verbose
         current_right_reason_loss += right_reason_loss.item() * x_train.size(0)
 
         if verbose == 1:
-            print("Loss: {:6f}; RA Loss: {:6f}; RR Loss: {:6f}".format(loss.item() * x_train.size(0),
-                                                                                       right_answer_loss.item()  * x_train.size(0),
-                                                                                       right_reason_loss.item()  * x_train.size(0)))
+            print(
+                "Loss: {:6f}; RA Loss: {:6f}; RR Loss: {:6f}".format(
+                    loss.item() * x_train.size(0),
+                    right_answer_loss.item() * x_train.size(0),
+                    right_reason_loss.item() * x_train.size(0),
+                )
+            )
 
     epoch_loss = current_loss / n_batches
     epoch_acc = balanced_accuracy_score(all_targets, all_preds)
 
-    return epoch_loss, epoch_acc, (current_right_answer_loss / n_batches), (current_right_reason_loss / n_batches)
+    return (
+        epoch_loss,
+        epoch_acc,
+        (current_right_answer_loss / n_batches),
+        (current_right_reason_loss / n_batches),
+    )
 
 
 def test(model, test_loader, criterion, verbose=0):
@@ -354,8 +453,11 @@ def test(model, test_loader, criterion, verbose=0):
             y_preds += y_pred.cpu().numpy().tolist()
 
             if verbose > 0:
-                print("Accuracy of network on test images is ... {:.4f}....count: {}".format(
-                    balanced_accuracy_score(y_test.cpu(), y_pred.cpu()), count))
+                print(
+                    "Accuracy of network on test images is ... {:.4f}....count: {}".format(
+                        balanced_accuracy_score(y_test.cpu(), y_pred.cpu()), count
+                    )
+                )
                 if verbose == 2:
                     print("True labels:\n" + str(y_test.cpu()))
                     print("Predicted labels:\n" + str(y_pred.cpu()))
@@ -375,21 +477,24 @@ def gen_cams():
 
     # load previous model dictionary
     state_dict = torch.load(glob.glob(args.fp_ckpt)[0])
-    std_scaler = state_dict['std_scaler']
+    std_scaler = state_dict["std_scaler"]
 
     # load model
-    model, _, model_params = load_model(num_classes=args.num_classes, feature_extract=False, use_pretrained=True)
-    model.load_state_dict(state_dict['model_state'], strict=True)
+    model, _, model_params = load_model(
+        num_classes=args.num_classes, feature_extract=False, use_pretrained=True
+    )
+    model.load_state_dict(state_dict["model_state"], strict=True)
     if args.cuda:
         model.cuda()
     print("The model was loaded from checkpoint")
 
-    filenames_allfiles, y, train_ids, test_ids, train_sample, test_samples= get_data_by_split()
+    filenames_allfiles, y, train_ids, test_ids, train_sample, test_samples = (
+        get_data_by_split()
+    )
 
     # load and permutate data
     x_data, y = imread_from_fp_rescale_rotate_flatten(
-        fplist=filenames_allfiles, y=y,
-        rescale_size=224, n_rot_per_img=0
+        fplist=filenames_allfiles, y=y, rescale_size=224, n_rot_per_img=0
     )
 
     # only get test data for generating gradcams
@@ -402,7 +507,9 @@ def gen_cams():
         orig_imgs.append(Image.open(fname).resize((224, 224), Image.ANTIALIAS))
 
     print("Stdscaler being applied ...")
-    x_norm = reshape_flattened_to_tensor_rgb(std_scaler.transform(x_data), width_height=224)
+    x_norm = reshape_flattened_to_tensor_rgb(
+        std_scaler.transform(x_data), width_height=224
+    )
 
     # create tensors for dataloaders
     tmp_tensors = (torch.tensor(x_norm), torch.tensor(y))
@@ -410,7 +517,7 @@ def gen_cams():
     tmp_dataset = CustomRGBDataset(tensors=tmp_tensors)
     tmp_loader = torch.utils.data.DataLoader(tmp_dataset, batch_size=1)
 
-    fp_cvrun = args.fp_save + 'gradcams/'
+    fp_cvrun = args.fp_save + "gradcams/"
 
     # create the directory of the gradcams in case it does not exist
     try:
@@ -430,7 +537,7 @@ def gen_cams():
         im = ndi.gaussian_filter(im, 4)
         # Compute the Canny filter for two values of sigma
         edges1 = feature.canny(im, sigma=3)
-        edges1 = Image.fromarray(np.uint8(np.invert(edges1) * 255), 'L')
+        edges1 = Image.fromarray(np.uint8(np.invert(edges1) * 255), "L")
 
         enhancer = ImageEnhance.Brightness(orig_imgs[i])
         orig_img = enhancer.enhance(1.8)
@@ -448,29 +555,44 @@ def gen_cams():
         y_pred = y_pred.cpu().numpy().tolist()[0]
 
         # Grad cam
-        grad_cam = GradCam(model, target_layer=29, device=args.device) # last RELU layer of model.features
+        grad_cam = GradCam(
+            model, target_layer=29, device=args.device
+        )  # last RELU layer of model.features
 
         # Generate cam mask
         cam_class = y_pred
         print("Pred: {}, Class : {}".format(y_pred, cam_class))
         cam = grad_cam.generate_cam(x, [cam_class])
 
-        tmp = filenames_allfiles[i].split('.')[0].split('/')
+        tmp = filenames_allfiles[i].split(".")[0].split("/")
 
         # Save subplots
-        f_name = str(tmp[-1]) + '_class_' + str(cam_class)
-        fp_cam = os.path.join(fp_cvrun + f_name + '_y_' + str(y) + '_ypred_' + str(y_pred) + '_Cam_Heatmap')
+        f_name = str(tmp[-1]) + "_class_" + str(cam_class)
+        fp_cam = os.path.join(
+            fp_cvrun
+            + f_name
+            + "_y_"
+            + str(y)
+            + "_ypred_"
+            + str(y_pred)
+            + "_Cam_Heatmap"
+        )
 
-        save_class_activation_images(orig_img, cam, fp_cam + '.png',
-                                     file_name=f_name,
-                                     true_class=y,
-                                     pred_class=y_pred, edge_img=edges1)
+        save_class_activation_images(
+            orig_img,
+            cam,
+            fp_cam + ".png",
+            file_name=f_name,
+            true_class=y,
+            pred_class=y_pred,
+            edge_img=edges1,
+        )
 
-        np.save(fp_cam + '.npy', cam)
+        np.save(fp_cam + ".npy", cam)
 
         # print("Sample ", filenames_allfiles[i], " true ", y, "pred ", y_pred, i+1, "/", len(filenames_allfiles))
 
-    print('\nGrad cam completed')
+    print("\nGrad cam completed")
     print("\n----------------------------------------------------------------\n")
 
 
@@ -497,22 +619,31 @@ def run_training():
         if e.errno != errno.EEXIST:
             raise
 
-    #--------------------------------------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------------------------------------#
     # Data loading and preprocessing
 
-    filenames_allfiles, y, train_ids, test_ids, train_sample, test_samples = get_data_by_split()
+    filenames_allfiles, y, train_ids, test_ids, train_sample, test_samples = (
+        get_data_by_split()
+    )
 
     # load data and possibly masks
     if not args.rrr:
         x_data, y = imread_from_fp_rescale_rotate_flatten(
-            fplist=filenames_allfiles, y=y,
-            rescale_size=224, n_rot_per_img=args.n_rotations
+            fplist=filenames_allfiles,
+            y=y,
+            rescale_size=224,
+            n_rot_per_img=args.n_rotations,
         )
     else:
         print("Loading masks as well ...")
         x_data, masks, y = imread_from_fp_rescale_rotate_flatten_returnmasks(
-            fplist=filenames_allfiles, fp_mask=args.fp_mask, y=y, rescale_size=224,
-            n_rot_per_img=args.n_rotations, rrr=args.rrr, model=args.model_name
+            fplist=filenames_allfiles,
+            fp_mask=args.fp_mask,
+            y=y,
+            rescale_size=224,
+            n_rot_per_img=args.n_rotations,
+            rrr=args.rrr,
+            model=args.model_name,
         )
 
     print("Images read")
@@ -526,22 +657,31 @@ def run_training():
     std_scaler = std_scaler.fit(x_data[train_ids, :])
 
     print("StandardScaler transform being applied ...")
-    x_norm = reshape_flattened_to_tensor_rgb(std_scaler.transform(x_data), width_height=224)
+    x_norm = reshape_flattened_to_tensor_rgb(
+        std_scaler.transform(x_data), width_height=224
+    )
 
     print("Data reshaped ...")
 
-    #--------------------------------------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------------------------------------#
     # Loading model
 
     # load pretrained model
     print("Loading the pretrained torchvision model.")
-    model, _, model_params = load_model(num_classes=args.num_classes, feature_extract=False, use_pretrained=True)
+    model, _, model_params = load_model(
+        num_classes=args.num_classes, feature_extract=False, use_pretrained=True
+    )
     model.target_output = None
 
-    optimizer = torch.optim.Adam(model_params, lr=args.lr, amsgrad=True, weight_decay=1e-5)
+    optimizer = torch.optim.Adam(
+        model_params, lr=args.lr, amsgrad=True, weight_decay=1e-5
+    )
 
     # set optimizer and criterion
-    weights = [np.sum(y[train_ids] == i)/len(y[train_ids]) for i in np.arange(0, args.num_classes)]
+    weights = [
+        np.sum(y[train_ids] == i) / len(y[train_ids])
+        for i in np.arange(0, args.num_classes)
+    ]
     class_weights = torch.FloatTensor(weights)
     if args.cuda:
         class_weights = class_weights.cuda()
@@ -561,13 +701,16 @@ def run_training():
     if args.cuda:
         model.cuda()
 
-    print('Model successfully loaded ...')
+    print("Model successfully loaded ...")
 
-    #--------------------------------------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------------------------------------#
     # Setting up Dataloaders
 
     # create tensors for dataloaders
-    train_tensors = (torch.tensor(x_norm[train_ids, :, :, :]), torch.tensor(y[train_ids]))
+    train_tensors = (
+        torch.tensor(x_norm[train_ids, :, :, :]),
+        torch.tensor(y[train_ids]),
+    )
     test_tensors = (torch.tensor(x_norm[test_ids, :, :, :]), torch.tensor(y[test_ids]))
 
     print("Tensors created")
@@ -579,17 +722,18 @@ def run_training():
         test_tensors = test_tensors + (torch.tensor(masks[test_ids]),)
 
     train_dataset = CustomRGBDataset(tensors=train_tensors)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size)
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=args.batch_size
+    )
     test_dataset = CustomRGBDataset(tensors=test_tensors)
-    test_loader = torch.utils.data.DataLoader(test_dataset,
-                                              batch_size=args.batch_size)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size)
 
-    print('Data successfully loaded ...')
+    print("Data successfully loaded ...")
 
-    #--------------------------------------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------------------------------------#
     # Training process
 
-    print('Training beginning ...')
+    print("Training beginning ...")
 
     last_checkpoint_fp = 0
     last_best_checkpoint_fp = 0
@@ -602,47 +746,55 @@ def run_training():
     bal_acc_test_array = np.ones(args.n_epochs)
 
     # train on number of epochs
-    for epoch in np.arange(1, args.n_epochs+1):
+    for epoch in np.arange(1, args.n_epochs + 1):
         with torch.set_grad_enabled(True):
-            epoch_train_loss, epoch_train_acc, epoch_ra_loss, epoch_rr_loss = train(model, train_loader,
-                                                                                    criterion_train,
-                                                                                    class_weights=class_weights,
-                                                                                    optimizer=optimizer,
-                                                                                    verbose=0)
+            epoch_train_loss, epoch_train_acc, epoch_ra_loss, epoch_rr_loss = train(
+                model,
+                train_loader,
+                criterion_train,
+                class_weights=class_weights,
+                optimizer=optimizer,
+                verbose=0,
+            )
             # print("Epoch: {} Train Loss : {:.4f}  Train Accuracy: {:.4f} Train Right Answer Loss: {:.4f} Train Right Reason Loss: {:.4f}".format(epoch, epoch_train_loss,                                                                 epoch_train_acc,                                                                                    epoch_ra_loss,                                                                           epoch_rr_loss))
-            raloss_array[epoch-1] = epoch_ra_loss
+            raloss_array[epoch - 1] = epoch_ra_loss
             rrloss_array[epoch - 1] = epoch_rr_loss
             bal_acc_train_array[epoch - 1] = epoch_train_acc
 
         with torch.set_grad_enabled(False):
             print("Evaluation running...")
-            epoch_test_loss, epoch_test_acc = test(model, test_loader, criterion_test, verbose=0)
+            epoch_test_loss, epoch_test_acc = test(
+                model, test_loader, criterion_test, verbose=0
+            )
             # print("Epoch: {} Test Loss : {:.4f}  Test Accuracy: {:.4f}".format(epoch, epoch_test_loss, epoch_test_acc))
 
             bal_acc_test_array[epoch - 1] = epoch_test_acc
 
             if not args.rrr:
-                print('Epoch:', epoch, 'LR:', scheduler.get_lr())
+                print("Epoch:", epoch, "LR:", scheduler.get_lr())
                 scheduler.step()
 
             # save current model
-            checkpoint = {'model_state': model.state_dict(),
-                          'std_scaler': std_scaler,
-                          'optimizer_state': optimizer.state_dict(),
-                          'args': args,
-                          'epoch': epoch,
-                          'test_loss': epoch_test_loss,
-                          'test_acc': epoch_test_acc,
-                          }
+            checkpoint = {
+                "model_state": model.state_dict(),
+                "std_scaler": std_scaler,
+                "optimizer_state": optimizer.state_dict(),
+                "args": args,
+                "epoch": epoch,
+                "test_loss": epoch_test_loss,
+                "test_acc": epoch_test_acc,
+            }
 
             if epoch > 1:
                 # remove checkpoint saved in last epoch
                 os.remove(last_checkpoint_fp)
 
-            last_checkpoint_fp = "{}{}_cvnum_{}_epoch_{}.pth".format(args.fp_save, args.model_name,
-                                                                     str(args.cv_run), str(epoch),
-                                                                     )
-
+            last_checkpoint_fp = "{}{}_cvnum_{}_epoch_{}.pth".format(
+                args.fp_save,
+                args.model_name,
+                str(args.cv_run),
+                str(epoch),
+            )
 
             torch.save(checkpoint, last_checkpoint_fp)
 
@@ -652,12 +804,15 @@ def run_training():
                     # delete last best model
                     os.remove(last_best_checkpoint_fp)
 
-                last_best_checkpoint_fp = "{}{}_cvnum_{}_epoch_{}_testbalacc_{}_besttestacc.pth".format(args.fp_save,
-                                                                                                        args.model_name,
-                                                                                                        str(args.cv_run),
-                                                                                                        str(epoch),
-                                                                                                        str(int(10000*epoch_test_acc))
-                                                                                                        )
+                last_best_checkpoint_fp = (
+                    "{}{}_cvnum_{}_epoch_{}_testbalacc_{}_besttestacc.pth".format(
+                        args.fp_save,
+                        args.model_name,
+                        str(args.cv_run),
+                        str(epoch),
+                        str(int(10000 * epoch_test_acc)),
+                    )
+                )
 
                 torch.save(checkpoint, last_best_checkpoint_fp)
                 last_test_acc = epoch_test_acc
@@ -684,29 +839,40 @@ def run_test():
     state_dict = torch.load(glob.glob(args.fp_ckpt)[0])
 
     # load model
-    model, _, model_params = load_model(num_classes=args.num_classes, feature_extract=False, use_pretrained=True)
-    model.load_state_dict(state_dict['model_state'], strict=True)
+    model, _, model_params = load_model(
+        num_classes=args.num_classes, feature_extract=False, use_pretrained=True
+    )
+    model.load_state_dict(state_dict["model_state"], strict=True)
     if args.cuda:
         model.cuda()
     model.eval()
     print("The model was loaded from checkpoint")
 
-    #--------------------------------------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------------------------------------#
     # Data loading and preprocessing
 
-    filenames_allfiles, y, train_ids, test_ids, train_sample, test_samples= get_data_by_split()
+    filenames_allfiles, y, train_ids, test_ids, train_sample, test_samples = (
+        get_data_by_split()
+    )
 
     # load data and possibly masks
     if not args.rrr:
         x_data, y = imread_from_fp_rescale_rotate_flatten(
-            fplist=filenames_allfiles, y=y,
-            rescale_size=224, n_rot_per_img=args.n_rotations
+            fplist=filenames_allfiles,
+            y=y,
+            rescale_size=224,
+            n_rot_per_img=args.n_rotations,
         )
     else:
         print("Loading masks as well ...")
         x_data, masks, y = imread_from_fp_rescale_rotate_flatten_returnmasks(
-            fplist=filenames_allfiles, fp_mask=args.fp_mask, y=y, rescale_size=224,
-            n_rot_per_img=args.n_rotations, rrr=args.rrr, model=args.model_name
+            fplist=filenames_allfiles,
+            fp_mask=args.fp_mask,
+            y=y,
+            rescale_size=224,
+            n_rot_per_img=args.n_rotations,
+            rrr=args.rrr,
+            model=args.model_name,
         )
 
     print("Images read")
@@ -720,11 +886,13 @@ def run_test():
     std_scaler = std_scaler.fit(x_data[train_ids, :])
 
     print("StandardScaler transform being applied ...")
-    x_norm = reshape_flattened_to_tensor_rgb(std_scaler.transform(x_data), width_height=224)
+    x_norm = reshape_flattened_to_tensor_rgb(
+        std_scaler.transform(x_data), width_height=224
+    )
 
     print("Data reshaped ...")
 
-    #--------------------------------------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------------------------------------#
     # Setting up Dataloaders
 
     # create tensors for dataloader
@@ -738,12 +906,11 @@ def run_test():
         test_tensors = test_tensors + (torch.tensor(masks[test_ids]),)
 
     test_dataset = CustomRGBDataset(tensors=test_tensors)
-    test_loader = torch.utils.data.DataLoader(test_dataset,
-                                              batch_size=args.batch_size)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size)
 
-    print('Data successfully loaded ...')
+    print("Data successfully loaded ...")
 
-    #--------------------------------------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------------------------------------#
     # compute prediciton on test set
     criterion_test = nn.CrossEntropyLoss()
     _, test_acc = test(model, test_loader, criterion_test, verbose=0)
@@ -763,5 +930,5 @@ def main():
 
 
 if __name__ == "__main__":
-    setproctitle.setproctitle('ML CNNs Z dataset')
+    setproctitle.setproctitle("ML CNNs Z dataset")
     main()

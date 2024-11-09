@@ -3,15 +3,16 @@ Created on Thu Oct 21 11:09:09 2017
 
 @author: Utku Ozbulak - github.com/utkuozbulak
 """
-import os
+
 import copy
-import numpy as np
-from PIL import Image
+import os
+
 import matplotlib.cm as mpl_color_map
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
+import numpy as np
 import torch
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from PIL import Image
 from torch.autograd import Variable
 from torchvision import models
 
@@ -29,7 +30,7 @@ def convert_to_grayscale(im_as_arr):
     grayscale_im = np.sum(np.abs(im_as_arr), axis=0)
     im_max = np.percentile(grayscale_im, 99)
     im_min = np.min(grayscale_im)
-    grayscale_im = (np.clip((grayscale_im - im_min) / (im_max - im_min), 0, 1))
+    grayscale_im = np.clip((grayscale_im - im_min) / (im_max - im_min), 0, 1)
     grayscale_im = np.expand_dims(grayscale_im, axis=0)
     return grayscale_im
 
@@ -42,18 +43,26 @@ def save_gradient_images(gradient, file_name):
         gradient (np arr): Numpy array of the gradient with shape (3, 224, 224)
         file_name (str): File name to be exported
     """
-    if not os.path.exists('../results'):
-        os.makedirs('../results')
+    if not os.path.exists("../results"):
+        os.makedirs("../results")
     # Normalize
     gradient = gradient - gradient.min()
     gradient /= gradient.max()
     # Save image
-    path_to_file = os.path.join('../results', file_name + '.jpg')
+    path_to_file = os.path.join("../results", file_name + ".jpg")
     save_image(gradient, path_to_file)
 
 
-def save_class_activation_images(org_img, activation_map, fp_to_save, file_name, true_class, pred_class,
-                                 edge_img=None, detailed_plots=False):
+def save_class_activation_images(
+    org_img,
+    activation_map,
+    fp_to_save,
+    file_name,
+    true_class,
+    pred_class,
+    edge_img=None,
+    detailed_plots=False,
+):
     """
         Saves cam activation map and activation map on the original image
 
@@ -64,45 +73,58 @@ def save_class_activation_images(org_img, activation_map, fp_to_save, file_name,
     """
     # Grayscale activation map
     if edge_img == None:
-        heatmap, heatmap_on_image = apply_colormap_on_image(org_img, activation_map, 'viridis')
+        heatmap, heatmap_on_image = apply_colormap_on_image(
+            org_img, activation_map, "viridis"
+        )
     else:
-        heatmap, heatmap_on_image = apply_colormap_on_image(edge_img, activation_map, 'viridis')
+        heatmap, heatmap_on_image = apply_colormap_on_image(
+            edge_img, activation_map, "viridis"
+        )
 
     if detailed_plots:
-        fig, ax = plt.subplots(ncols=2, nrows=1, figsize=(20,20))
+        fig, ax = plt.subplots(ncols=2, nrows=1, figsize=(20, 20))
         ax[0, 0].imshow(org_img)
-        ax[0, 0].set_title('Original RGB', fontsize=30)
-        ax[0, 0].axis('off')
+        ax[0, 0].set_title("Original RGB", fontsize=30)
+        ax[0, 0].axis("off")
 
-        ax[0, 1].imshow(activation_map, cmap='gray')
-        ax[0, 1].set_title('CAM Grayscale', fontsize=30)
-        ax[0, 1].axis('off')
+        ax[0, 1].imshow(activation_map, cmap="gray")
+        ax[0, 1].set_title("CAM Grayscale", fontsize=30)
+        ax[0, 1].axis("off")
 
         im10 = ax[1, 0].imshow(heatmap)
-        ax[1, 0].set_title('CAM Heatmap', fontsize=30)
-        ax[1, 0].axis('off')
+        ax[1, 0].set_title("CAM Heatmap", fontsize=30)
+        ax[1, 0].axis("off")
 
         divider = make_axes_locatable(ax[1, 0])
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        fig.colorbar(im10, cax=cax, orientation='vertical')
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        fig.colorbar(im10, cax=cax, orientation="vertical")
 
         ax[1, 1].imshow(heatmap_on_image)
-        ax[1, 1].set_title('CAM Heatmap overlay', fontsize=30)
-        ax[1, 1].axis('off')
+        ax[1, 1].set_title("CAM Heatmap overlay", fontsize=30)
+        ax[1, 1].axis("off")
 
-        plt.suptitle('True Class: ' + str(true_class) + '; Pred Class: ' + str(pred_class) + '; CAM Class: ' +
-                     file_name.split('_')[-1], fontsize=30)
+        plt.suptitle(
+            "True Class: "
+            + str(true_class)
+            + "; Pred Class: "
+            + str(pred_class)
+            + "; CAM Class: "
+            + file_name.split("_")[-1],
+            fontsize=30,
+        )
 
     else:
         fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
         ax[0].imshow(org_img)
-        ax[0].axis('off')
+        ax[0].axis("off")
         ax[1].imshow(activation_map)
         ax[1].imshow(edge_img, alpha=0.2)
-        ax[1].axis('off')
-        plt.subplots_adjust(left=0., right=1., bottom=0., top=1., wspace=0., hspace=0.)
+        ax[1].axis("off")
+        plt.subplots_adjust(
+            left=0.0, right=1.0, bottom=0.0, top=1.0, wspace=0.0, hspace=0.0
+        )
 
-    fig.savefig(fp_to_save, bbox_inches='tight')
+    fig.savefig(fp_to_save, bbox_inches="tight")
     plt.close()
 
 
@@ -120,12 +142,12 @@ def apply_colormap_on_image(org_im, activation, colormap_name):
     # Change alpha channel in colormap to make sure original image is displayed
     heatmap = copy.copy(no_trans_heatmap)
     heatmap[:, :, 3] = 0.4
-    heatmap = Image.fromarray((heatmap*255).astype(np.uint8))
-    no_trans_heatmap = Image.fromarray((no_trans_heatmap*255).astype(np.uint8))
+    heatmap = Image.fromarray((heatmap * 255).astype(np.uint8))
+    no_trans_heatmap = Image.fromarray((no_trans_heatmap * 255).astype(np.uint8))
 
     # Apply heatmap on iamge
     heatmap_on_image = Image.new("RGBA", org_im.size)
-    heatmap_on_image = Image.alpha_composite(heatmap_on_image, org_im.convert('RGBA'))
+    heatmap_on_image = Image.alpha_composite(heatmap_on_image, org_im.convert("RGBA"))
     heatmap_on_image = Image.alpha_composite(heatmap_on_image, heatmap)
     return no_trans_heatmap, heatmap_on_image
 
@@ -153,7 +175,7 @@ def format_np_output(np_arr):
     # Phase/Case 4: NP arr is normalized between 0-1
     # Result: Multiply with 255 and change type to make it saveable by PIL
     if np.max(np_arr) <= 1:
-        np_arr = (np_arr*255).astype(np.uint8)
+        np_arr = (np_arr * 255).astype(np.uint8)
     return np_arr
 
 
@@ -211,7 +233,7 @@ def recreate_image(im_as_var):
         recreated_im (numpy arr): Recreated image in array
     """
     reverse_mean = [-0.485, -0.456, -0.406]
-    reverse_std = [1/0.229, 1/0.224, 1/0.225]
+    reverse_std = [1 / 0.229, 1 / 0.224, 1 / 0.225]
     recreated_im = copy.copy(im_as_var.data.numpy()[0])
     for c in range(3):
         recreated_im[c] /= reverse_std[c]
@@ -233,8 +255,8 @@ def get_positive_negative_saliency(gradient):
     returns:
         pos_saliency ( )
     """
-    pos_saliency = (np.maximum(0, gradient) / gradient.max())
-    neg_saliency = (np.maximum(0, -gradient) / -gradient.min())
+    pos_saliency = np.maximum(0, gradient) / gradient.max()
+    neg_saliency = np.maximum(0, -gradient) / -gradient.min()
     return pos_saliency, neg_saliency
 
 
@@ -253,20 +275,24 @@ def get_example_params(example_index):
         pretrained_model(Pytorch model): Model to use for the operations
     """
     # Pick one of the examples
-    example_list = (('../input_images/snake.jpg', 56),
-                    ('../input_images/cat_dog.png', 243),
-                    ('../input_images/spider.png', 72))
+    example_list = (
+        ("../input_images/snake.jpg", 56),
+        ("../input_images/cat_dog.png", 243),
+        ("../input_images/spider.png", 72),
+    )
     img_path = example_list[example_index][0]
     target_class = example_list[example_index][1]
-    file_name_to_export = img_path[img_path.rfind('/')+1:img_path.rfind('.')]
+    file_name_to_export = img_path[img_path.rfind("/") + 1 : img_path.rfind(".")]
     # Read image
-    original_image = Image.open(img_path).convert('RGB')
+    original_image = Image.open(img_path).convert("RGB")
     # Process image
     prep_img = preprocess_image(original_image)
     # Define model
     pretrained_model = models.alexnet(pretrained=True)
-    return (original_image,
-            prep_img,
-            target_class,
-            file_name_to_export,
-            pretrained_model)
+    return (
+        original_image,
+        prep_img,
+        target_class,
+        file_name_to_export,
+        pretrained_model,
+    )
