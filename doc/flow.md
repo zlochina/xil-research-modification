@@ -85,5 +85,6 @@ Further `RRR` stands for `Right Reasons` part of the RRR loss function of the di
         1. rrr_loss_hs.rrr_loss_function: RRR implementation
     * ✅rgb_utils:
         1. rrr_loss_rgb.rrr_loss_function: RRR implementation very simmilar to hs RRR implementation
-    * ❌.:
-        <!-- 1. TODO Add main_hs and main_rgb usage of rrr -->
+    * ✅.:
+        1. main_hs.train: Usage of rrr_loss_function from rrr_loss_hs.py
+        2. main_rgb.train: Usage of rrr_loss_function from rrr_loss_rgb.py
