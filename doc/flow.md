@@ -1,7 +1,7 @@
 # Description of workflow on 1st semester of bakalarka
 ## TODO
 - [ ] Theory:
-    - [ ] Find where RRR is applied
+    - [x] Find where RRR is applied
     - [ ] Research how it is done, what modules are used, on what kind of dataset it is done
     - [ ] Try to experiment with input parameters
     - [ ] Understand how can I evaluate model learning, where learning is done in short time to show speed of progress, and based on input parameters
