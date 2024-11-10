@@ -1,0 +1,71 @@
+
+Found imports by file:
+
+caipi/caipi.py:
+  - sklearn
+
+caipi/caipi-draw-weights.py:
+  - sys
+
+caipi/prepare-reviews.py:
+  - sklearn
+  - spacy
+
+caipi/prepare-newsgroups.py:
+  - sklearn
+  - spacy
+
+caipi/caipi/tabular.py:
+  - itertools
+  - lime
+  - sklearn
+  - time
+
+caipi/caipi/learners.py:
+  - sklearn
+
+caipi/caipi/problem.py:
+  - sklearn
+
+caipi/caipi/text.py:
+  - blessings
+  - gensim
+  - lime
+  - sklearn
+  - time
+
+caipi/caipi/image.py:
+  - blessings
+  - itertools
+  - lime
+  - skimage
+  - sklearn
+  - time
+
+caipi/rrr/rrr/multilayer_perceptron.py:
+  - autograd
+
+caipi/rrr/rrr/decoy_mnist.py:
+  - array
+  - future
+
+caipi/rrr/rrr/iris_cancer.py:
+  - sklearn
+
+caipi/rrr/rrr/tensorflow_perceptron.py:
+  - tensorflow
+
+All unique third-party imports:
+- array
+- autograd
+- blessings
+- future
+- gensim
+- itertools
+- lime
+- skimage
+- sklearn
+- spacy
+- sys
+- tensorflow
+- time
