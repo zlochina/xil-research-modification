@@ -43,8 +43,7 @@ from scipy import ndimage as ndi
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from matplotlib import rc
 
-sys.path.insert(0, 'libs')
-from libs.auto_spectral_clustering.autosp import predict_k
+from .libs.auto_spectral_clustering.autosp import predict_k
 from .utils import get_dai_label
 
 # Create an array with the colors you want to use
