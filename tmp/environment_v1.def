@@ -1,0 +1,70 @@
+Bootstrap: docker
+From: nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
+
+%labels
+    MAINTAINER YourName
+    VERSION v1.0
+
+%environment
+    export LC_ALL=C
+    export PYTHONPATH=/opt/project
+    export CUDA_HOME=/usr/local/cuda
+    export PATH=/usr/local/cuda/bin:$PATH
+    export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+%post
+    # System updates and basic dependencies
+    apt-get update && apt-get upgrade -y
+    apt-get install -y \
+        python3.7 \
+        python3.7-dev \
+        python3-pip \
+        build-essential \
+        git \
+        wget \
+        libgl1-mesa-glx \  # Required for OpenCV
+        libglib2.0-0 \
+        # TODO: Add more system dependencies as needed
+
+    # Update alternatives to use Python 3.7
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
+
+    # Upgrade pip
+    python3 -m pip install --upgrade pip
+
+    # Install common requirements first (shared between projects)
+    pip3 install \
+        scikit-image==0.15.0 \
+        scikit-learn==0.20.3 \
+        seaborn==0.9.0
+
+    # Fashion_MNIST requirements
+    pip3 install \
+        array \
+        autograd==1.1.7 \
+        blessings \
+        future \
+        gensim \
+        lime \
+        spacy \
+        tensorflow-gpu  # Using GPU version since we have CUDA
+
+    # Plant_Phenotyping requirements
+    pip3 install \
+        opencv-python==4.0.0.21 \
+        mayavi \
+        setproctitle==1.1.10 \
+        tensorboardX==1.6 \
+        torch==1.2.0 \
+        torchvision==0.4.0 \
+        tqdm==4.43.0 \
+        tvtk
+
+    # TODO: Add optional software
+    # TODO: Add specific entry points/scripts
+    
+%runscript
+    python3 "$@"
+
+# TODO: Add bind points for data mounting
+
