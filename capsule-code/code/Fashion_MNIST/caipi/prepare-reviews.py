@@ -7,7 +7,7 @@ from os.path import join
 
 import numpy as np
 import spacy
-from caipi import dump, load
+from .caipi import dump, load
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import SGDClassifier
 

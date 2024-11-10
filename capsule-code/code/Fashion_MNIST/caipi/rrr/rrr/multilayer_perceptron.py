@@ -4,7 +4,7 @@ from autograd import elementwise_grad, grad
 from autograd.optimizers import adam
 from autograd.scipy.misc import logsumexp
 from autograd.util import flatten
-from local_linear_explanation import LocalLinearExplanation
+from .local_linear_explanation import LocalLinearExplanation
 
 # Adapted from https://github.com/HIPS/autograd/blob/master/examples/neural_net.py
 # with modifications made such that we have a first-class MLP object
@@ -185,10 +185,10 @@ class MultilayerPerceptron:
 
 
 if __name__ == "__main__":
-    import toy_colors
+    from .toy_colors import generate_dataset
 
     print("generating dataset...")
-    X, Xt, y, yt = toy_colors.generate_dataset()
+    X, Xt, y, yt = generate_dataset()
     print("fitting MLP")
     mlp = MultilayerPerceptron()
     mlp.fit(X, y)

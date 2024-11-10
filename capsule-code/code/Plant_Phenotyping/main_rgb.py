@@ -36,10 +36,10 @@ import numpy as np
 import setproctitle
 import torchvision.models as models
 from PIL import ImageEnhance
-from rgb_utils.gradcam_rgb import GradCam
-from rgb_utils.misc_functions_rgb import save_class_activation_images
-from rgb_utils.rrr_loss_rgb import rrr_loss_function  # RRRLoss
-from rgb_utils.utils_rgb import *
+from .rgb_utils.gradcam_rgb import GradCam
+from .rgb_utils.misc_functions_rgb import save_class_activation_images
+from .rgb_utils.rrr_loss_rgb import rrr_loss_function  # RRRLoss
+from .rgb_utils.utils_rgb import *
 from scipy import ndimage as ndi
 from skimage import feature
 from sklearn import preprocessing

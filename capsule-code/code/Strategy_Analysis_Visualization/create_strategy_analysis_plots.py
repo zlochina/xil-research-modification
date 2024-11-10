@@ -45,7 +45,7 @@ from matplotlib import rc
 
 sys.path.insert(0, 'libs')
 from libs.auto_spectral_clustering.autosp import predict_k
-from utils import get_dai_label
+from .utils import get_dai_label
 
 # Create an array with the colors you want to use
 colors = ['#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#ffd92f', '#e5c494', '#956cb4']

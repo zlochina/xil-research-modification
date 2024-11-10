@@ -5,7 +5,7 @@ from sklearn.cluster import SpectralClustering
 from sklearn.datasets import make_blobs
 from sklearn.neighbors import kneighbors_graph
 
-from autosp import predict_k
+from .autosp import predict_k
 
 
 def consistent_labels(labels):
