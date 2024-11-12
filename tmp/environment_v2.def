@@ -44,27 +44,6 @@ From: nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
         scikit-learn==0.20.3 \
         seaborn==0.9.0
 
-    # Fashion_MNIST requirements
-    pip3 install \
-        autograd==1.1.7 \
-        blessings \
-        future \
-        gensim \
-        lime \
-        spacy \
-        tensorflow-gpu  # Using GPU version since we have CUDA
-
-    # Plant_Phenotyping requirements
-    pip3 install \
-        opencv-python==4.0.0.21 \
-        mayavi \
-        setproctitle==1.1.10 \
-        tensorboardX==1.6 \
-        torch==1.2.0 \
-        torchvision==0.4.0 \
-        tqdm==4.43.0 \
-        tvtk
-
     # Add optional software
 
     # Starship installation
