@@ -1,0 +1,23 @@
+Bootstrap: docker
+From: nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
+
+%labels
+    MAINTAINER YourName
+    VERSION v1.0
+
+%environment
+    export LC_ALL=C
+    export PYTHONPATH=/opt/project
+    export CUDA_HOME=/usr/local/cuda
+    export PATH=/usr/local/cuda/bin:$PATH
+    export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+%post
+    # System updates and basic dependencies
+    apt-get update && apt-get upgrade -y
+    
+%runscript
+    python3 "$@"
+
+# TODO: Add bind points for data mounting
+
