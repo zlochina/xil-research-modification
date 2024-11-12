@@ -46,7 +46,6 @@ From: nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
 
     # Fashion_MNIST requirements
     pip3 install \
-        array \
         autograd==1.1.7 \
         blessings \
         future \
