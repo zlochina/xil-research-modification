@@ -13,6 +13,10 @@ From: nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
     export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
 %post
+    # Set bash as default shell
+    SHELL=/bin/bash
+    echo "SHELL=/bin/bash" >> /etc/environment
+
     echo "System updates and basic dependencies..."
     apt-get update && apt-get upgrade -y
     
@@ -63,6 +67,47 @@ From: nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
         tvtk
 
     # Add optional software
+
+    # Starship installation
+
+    # Install Rust (required for Starship)
+    apt-get install -y curl
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source $HOME/.cargo/env
+
+    # Install Starship
+    curl -sS https://starship.rs/install.sh | sh -s -- --yes
+
+    # Install a Nerd Font (Optional, but recommended for full functionality)
+    apt-get install -y fonts-firacode
+
+    # Set up Starship in bash
+    echo 'eval "$(starship init bash)"' >> /.bashrc
+
+    # Create default Starship configuration
+    mkdir -p /.config
+    cat > /.config/starship.toml << 'EOF'
+    # Starship configuration
+    add_newline = true
+
+    [line_break]
+    disabled = false
+
+    [character]
+    success_symbol = "[➜](bold green)"
+    error_symbol = "[✗](bold red)"
+
+    [python]
+    symbol = "🐍 "
+    pyenv_version_name = true
+
+    [cuda]
+    symbol = "🚀 "
+    format = "[$symbol$version]($style) "
+EOF
+    # Install ranger file manager and dependencies
+    apt-get install -y ranger highlight caca-utils w3m poppler-utils
+
 
     # TODO: Add specific entry points/scripts
     
