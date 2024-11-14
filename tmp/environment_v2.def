@@ -9,7 +9,7 @@ From: nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
     export LC_ALL=C
     export PYTHONPATH=/opt/project
     export CUDA_HOME=/usr/local/cuda
-    export PATH=/usr/local/cuda/bin:$PATH
+    export PATH=/usr/local/cuda/bin:/root/.local/bin:$PATH
     export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
 %post
@@ -27,6 +27,10 @@ From: nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
     apt-get install -y \
         python3.8 \
         python3.8-dev \
+        python3.9 \
+        python3.9-dev \
+        python3.10 \
+        python3.10-dev \
         python3-pip \
         build-essential \
         git \
@@ -37,7 +41,9 @@ From: nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
         fonts-firacode
 
     echo "Update alternatives to use Python 3.8..."
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 3
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 2
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
 
     echo "Upgrade pip..."
     python3 -m pip install --upgrade pip
