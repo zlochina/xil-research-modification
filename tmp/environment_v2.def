@@ -22,6 +22,10 @@ From: nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
 
     echo "System updates and basic dependencies..."
     apt-get update && apt-get upgrade -y
+    # Add deadsnakes PPA to get access to multiple Python versions
+    apt-get install -y software-properties-common
+    add-apt-repository ppa:deadsnakes/ppa
+    apt-get update
     
     echo "\nNow install Python 3.8 and other dependencies..."
     apt-get install -y \
