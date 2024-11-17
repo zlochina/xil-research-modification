@@ -2,7 +2,9 @@
 ## TODO
 - [ ] Theory:
     - [x] Find where RRR is applied
-    - [ ] Research how it is done, what modules are used, on what kind of dataset it is done
+    - [ ] Research how it is done, what modules are used, on what kind of dataset it is done:
+        - [ ] We can use as a template project's implementation of MLP and even Tensorflow version of MLP (multilayer percpetron).
+        - [ ] As we're gonna replace dataset to another. Find out how it could be done. I guess usage of MLP and particular datasets would be found in the same file in each of the experiment from `experiments/*.ipynb`
     - [ ] Try to experiment with input parameters
     - [ ] Understand how can I evaluate model learning, where learning is done in short time to show speed of progress, and based on input parameters
     - [ ] Finish disassemble of the [paper](./flow.md)
@@ -13,12 +15,24 @@
     - [ ] Try to build my model using RRR gradient
 
 - [ ] Environment:
-    - [ ] Research how to build singularity container in order for it to be run in RCI cluster
+    - [x] Research how to build singularity container in order for it to be run in RCI cluster
     - [ ] Build container with dependencies.
-    - [ ] Try out building container using Singularity
+        - [x] OS dependency
+        - [ ] Python dependency. TODO: Find suitable dependency. Is resolved by finding common version for every `pyproject.toml`
+        - [x] Python requirements dependencies (I guess we should try Poetry or try installing to main Pip)
+        - [ ] Optional dependencies
+            - [ ] Ranger. Should find out how to use it properly
+            - [x] Starship. 
+            - [ ] btop
+            - [ ] Shell command autocompletion
+    - [x] Try out building container using Singularity
+    - [ ] Build poetry files for **Fashion_MNIST** and **Plant Phenotyping**. Optionally for Strategy Analysis
+        - [x] Fashion_MNIST
+        - [ ] Plant Phenotyping
+
 
 - [ ] RCI cluster:
-    - [ ] Research how to schedule and use rci cluster, maybe ask Professor or admins of RCI for manual.
+    - [ ] [Research](https://login.rci.cvut.cz/wiki/how_to_start) how to schedule and use rci cluster, maybe ask Professor or admins of RCI for manual.
 
 ## Tree of the paper code
 - [ ] `code/`

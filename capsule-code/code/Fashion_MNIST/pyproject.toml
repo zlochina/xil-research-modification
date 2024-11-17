@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "fashion-mnist-subproject"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<4.0"
+numpy = "2.0.2"
+autograd = "1.1.7"
+scikit-image = "^0.24.0"
+scikit-learn = "^1.5.2"
+blessings = "^1.7"
+future = "^1.0.0"
+lime = "^0.2.0.1"
+tensorflow = "^2.18.0"
+spacy = "^3.8.2"
+gensim = "<4.3.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
