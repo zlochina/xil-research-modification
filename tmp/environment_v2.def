@@ -13,6 +13,13 @@ From: nvidia/cuda:11.0.3-cudnn8-devel-ubuntu20.04
     export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
 %post
+    # Set noninteractive installation
+    export DEBIAN_FRONTEND=noninteractive
+
+    # Pre-set timezone information
+    echo "tzdata tzdata/Areas select Etc" | debconf-set-selections
+    echo "tzdata tzdata/Zones/Etc select UTC" | debconf-set-selections
+
     # Set bash as default shell
     SHELL=/bin/bash
     echo "SHELL=/bin/bash" >> /etc/environment
