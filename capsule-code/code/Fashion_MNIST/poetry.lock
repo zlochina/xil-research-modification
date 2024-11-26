@@ -39,18 +39,17 @@ wheel = ">=0.23.0,<1.0"
 
 [[package]]
 name = "autograd"
-version = "1.1.7"
+version = "1.2"
 description = "Efficiently computes derivatives of numpy code."
 optional = false
 python-versions = "*"
 files = [
-    {file = "autograd-1.1.7.tar.gz", hash = "sha256:857d0732026a63fca718c3134e5ec6a13a8f094759a47210f1cb6a9e63272e4b"},
+    {file = "autograd-1.2.tar.gz", hash = "sha256:a08bfa6d539b7a56e7c9f4d0881044afbef5e75f324a394c2494de963ea4a47d"},
 ]
 
 [package.dependencies]
 future = ">=0.15.2"
-numpy = ">=1.10"
-scipy = ">=0.17"
+numpy = ">=1.12"
 
 [[package]]
 name = "blessings"
@@ -2828,4 +2827,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<4.0"
-content-hash = "008315228e11476e69be856e225c06d8598214b82f5847768e4246374c28390f"
+content-hash = "023ed78077418c32728d5f24dd7e203304d62eb33120528638f1e1fdd3221335"
