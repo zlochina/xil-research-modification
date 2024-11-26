@@ -14,10 +14,10 @@ colors = {
 
 imglen = 5
 imgshape = (imglen, imglen, 3)
-topleft = [0, [0]]
-topright = [0, [imglen - 1]]
-botleft = [imglen - 1, [0]]
-botright = [imglen - 1, [imglen - 1]]
+topleft = [0, 0]
+topright = [0, imglen - 1]
+botleft = [imglen - 1, 0]
+botright = [imglen - 1, imglen - 1]
 
 ignore_rule1 = np.zeros(imgshape)
 for corner in [topleft, topright, botleft, botright]:
@@ -25,7 +25,7 @@ for corner in [topleft, topright, botleft, botright]:
 ignore_rule1 = ignore_rule1.ravel().astype(bool)
 
 ignore_rule2 = np.zeros(imgshape)
-ignore_rule2[[0, [1, 2, 3]]] = 1
+ignore_rule2[0, 1:3] = 1
 ignore_rule2 = ignore_rule2.ravel().astype(bool)
 
 
