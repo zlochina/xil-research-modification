@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "right for the right reasons (rrr) mlp"
+version = "0.1.0"
+description = "Multilayer Perceptron with RRR loss"
+authors = ["Vladyslav Zlochevskyi <zlochvla@fel.cvut.cz>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<4.0"
+torch = "^2.5.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
