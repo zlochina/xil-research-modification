@@ -93,16 +93,25 @@
 - [ ] Still I haven't started on understanding GradCam or LinearExplanation methods.
 
 ## QAs
-- [ ] Meaning of RRR? Does RRR in out project stands for the differential formula or the whole concept - actually, I mean if we should include discrete algorithms like CounterExamples? For now I included in my view only diffrential formula.
-- [ ] EKG dataset:
-    - [ ] Where could we get them? What kind of data it is (images, binary file,)
-    - [ ] How do we create binary masks? Do we create for all of the examples? If not, we would need to see how the loss function behaves on rather simillar examples with and without "Right reasons" loss.
-- [ ] Optimisation of hyperparameters. If you have some advices or guide, because I do not feel sure about this aspect.
-- [ ] Model training optimizer. Do we use SGD or should we consider e.g. Adam etc. Im not really sure how it affects RRR loss function (as "Right reasons" part is actually using gradient)
-- [ ] Gradient usage in "Right reasons"? Why do we apply binary mask to gradient, and not input parameters (I guess there is an answer somewhere in the materials of the paper.)
-- [ ] Model architecture. Plant Phenotyping hyperspectral dataset CNN architecture was used. I cannot come up with potential architectures until I see data.
-- [ ] Implementation of RRR loss function. Due to specifics of framework PyTorch, CrossEntropyLoss class has implemented L2 regularization, which I want to use it in such way that RRR loss will be built as sum of CrossEntropyLoss(with L2 reg) and manually defined Right Reasons loss. Im 90% sure, that there is no connection between Right Reasons loss and L2 regularization, is my assumption okay?
-- [ ] Training is implemented by back propagation. That's alright isn't it
+- [x] Meaning of RRR? Does RRR in out project stands for the differential formula or the whole concept - actually, I mean if we should include discrete algorithms like CounterExamples? For now I included in my view only diffrential formula.
+    * We should work with differential RRR for now. Other parameter tuning algorithms would be consider lately.
+- [x] EKG dataset:
+    - [x] Where could we get them? What kind of data it is (images, binary file,)
+        * Martin will collaborate on finding dataset.
+    - [x] How do we create binary masks? Do we create for all of the examples? If not, we would need to see how the loss function behaves on rather simillar examples with and without "Right reasons" loss.
+        * Binary masks more likely would depend on provided labels, so in the end it could look like binary masks created for example by the probided label.
+- [x] Optimisation of hyperparameters. If you have some advices or guide, because I do not feel sure about this aspect.
+    * Standard procedure would be fine. Short training on the set of values for each hyperparameter to decide the most optimal one.
+- [x] Model training optimizer. Do we use SGD or should we consider e.g. Adam etc. Im not really sure how it affects RRR loss function (as "Right reasons" part is actually using gradient)
+    * Lets try out with Adam, although I should check that `torch.autograd` method of gradient computing would work in such case correctly!!!!
+- [x] Gradient usage in "Right reasons"? Why do we apply binary mask to gradient, and not input parameters (I guess there is an answer somewhere in the materials of the paper.)
+    * First thing: gradients of the parameters provide a measure of how much each feature contributes to the model's decision. So when we try to discourage the behaviour of the gradients, we try to discourage "explanations" instead of fully ignoring/blinding the model from the input. So in the end, we penalise the thinking of the model and aligning it to what the **Expert** believes to be true.
+- [x] Model architecture. Plant Phenotyping hyperspectral dataset CNN architecture was used. I cannot come up with potential architectures until I see data.
+    * While trying to experiment with MNIST dataset I'm free to choose whatever is suitable for me.
+- [x] Implementation of RRR loss function. Due to specifics of framework PyTorch, CrossEntropyLoss class has implemented L2 regularization, which I want to use it in such way that RRR loss will be built as sum of CrossEntropyLoss(with L2 reg) and manually defined Right Reasons loss. Im 90% sure, that there is no connection between Right Reasons loss and L2 regularization, is my assumption okay?
+    * So actually the role of L2 regularization is not that outstanding, if the model without it perfoms well without overfitting, so we should deploy this method only we get to see overfitting.
+- [x] Training is implemented by back propagation. That's alright isn't it
+    * It is.
 
 ## Flow
 ### Find where RRR is applied
