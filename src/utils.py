@@ -1,5 +1,6 @@
 import torch
 
+# TODO: remove this class or replace variables with such as `model`, `optimizer`, `loss_fn` etc.
 class ModelConfig:
     LEARNING_RATE = 1e-3
     BATCH_SIZE = 64
@@ -35,12 +36,14 @@ class XILUtils:
         return device
 
     @staticmethod
-    def train_loop(dataloader: torch.utils.data.DataLoader, model: torch.nn.Module, loss_fn, optimizer, model_config: ModelConfig):
+    def train_loop(dataloader: torch.utils.data.DataLoader, model: torch.nn.Module, loss_fn, optimizer, model_config: ModelConfig, device: str):
 
         size = len(dataloader.dataset)
 
         model.train()
         for batch, (X, y) in enumerate(dataloader):
+            # move X and y to device
+            X, y = X.to(device), y.to(device)
             # Compute prediction and loss
             pred = model(X)
             loss = loss_fn(pred, y)
@@ -55,7 +58,7 @@ class XILUtils:
                 print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
 
     @staticmethod
-    def test_loop(dataloader, model, loss_fn):
+    def test_loop(dataloader, model, loss_fn, device):
         model.eval()
         size = len(dataloader.dataset)
         num_batches = len(dataloader)
@@ -63,10 +66,12 @@ class XILUtils:
 
         with torch.no_grad():
             for X, y in dataloader:
+                # move X, y to device
+                X, y = X.to(device), y.to(device)
                 pred = model(X)
                 test_loss += loss_fn(pred, y).item()
                 correct += (pred.argmax(1) == y).type(torch.float).sum().item()
 
             test_loss /= num_batches
             correct /= size
-            print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Abg loss: {test_loss:>8f} \n")
+            print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
