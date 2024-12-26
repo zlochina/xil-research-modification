@@ -1,2 +1,3 @@
 pytorch.ipynb
 *.pth
+data/*
