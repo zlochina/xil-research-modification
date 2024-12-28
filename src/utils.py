@@ -57,6 +57,7 @@ class XILUtils:
                 loss, current = loss.item(), batch * model_config.batch_size + len(X)
                 print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
 
+    # TODO: review how it is used in `pytorch.ipynb` and why I was forced to rewrite it in `08_MNIST.ipynb`
     @staticmethod
     def test_loop(dataloader, model, loss_fn, device):
         model.eval()
