@@ -3,12 +3,13 @@ import torch.nn as nn
 import torch
 
 class RRRLoss(nn.Module):
-    def __init__(self, model:nn.Module, layers_of_interest:List[nn.Module], criterion: nn.Module=nn.CrossEntropyLoss(), rightreasons_lambda: float=1000, weight_regularization_lambda: float | None=None, *args, **kwargs):
+    def __init__(self, model:nn.Module, layers_of_interest:List[nn.Module], criterion: nn.Module=nn.CrossEntropyLoss(),
+                 rightreasons_lambda: float=1000, weight_regularization_lambda: float=0., *args, **kwargs):
         super(RRRLoss, self).__init__(*args, **kwargs)
         self.right_answers_loss = criterion
         self.l2_right_reasons = rightreasons_lambda
         self.l2_weights = weight_regularization_lambda
-        self.gradients = dict() # TODO: remove or decide if either activations or gradients should be present
+        # self.gradients = dict() # TODO: remove or decide if either activations or gradients should be present
         self.activations = dict()
         self.model_parameters = model.parameters()
 
