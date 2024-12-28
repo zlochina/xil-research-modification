@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 
 # TODO: add functionality of optional binary mask
+# TODO: Look at the architecture of MNIST dataset and add additional helpful attributes
 class RRRDataset(Dataset):
     def __init__(self, data, labels, binary_masks, transform=None, target_transform=None):
         self.data = data
