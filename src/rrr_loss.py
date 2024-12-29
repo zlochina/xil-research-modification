@@ -1,10 +1,11 @@
 from typing import List
 import torch.nn as nn
 import torch
+import torch.nn.functional as F
 
 class RRRLoss(nn.Module):
     def __init__(self, model:nn.Module, layers_of_interest:List[nn.Module], criterion: nn.Module=nn.CrossEntropyLoss(),
-                 rightreasons_lambda: float=1000, weight_regularization_lambda: float=0., *args, **kwargs):
+                 rightreasons_lambda: float=1000, weight_regularization_lambda: float=0., device: str="cpu", *args, **kwargs):
         super(RRRLoss, self).__init__(*args, **kwargs)
         self.right_answers_loss = criterion
         self.l2_right_reasons = rightreasons_lambda
@@ -12,6 +13,7 @@ class RRRLoss(nn.Module):
         # self.gradients = dict() # TODO: remove or decide if either activations or gradients should be present
         self.activations = dict()
         self.model_parameters = model.parameters()
+        self.device = device
 
         if len(layers_of_interest) == 0:
             # Right answers loss should be computed with respect to inputs, instead of convolutional layer
@@ -28,17 +30,20 @@ class RRRLoss(nn.Module):
 
     def forward(self, predictions, targets, binary_masks):
         # right answers computation
+        if type(predictions) == tuple:
+            predictions = predictions[0]
         right_answers_loss = self.right_answers_loss(predictions, targets)
 
         # right reasons computation
-        y_log = torch.log(predictions)
-        right_reasons_loss = torch.zeros() # TODO: add shape
-        for layer_name, activations in self.activations.items():
-            right_reasons_loss += self.calculate_right_reasons_loss_per_layer(activations, binary_masks, log_probs=y_log)
-        right_reasons_loss = self.l2_right_reasons * torch.sum(right_reasons_loss / len(self.activations)) # TODO: maybe remove `/ len(...)` as for now Im suggesting taking mean of right reasons for all layers of interest
+        right_reasons_loss = torch.tensor(0, dtype=torch.float, requires_grad=True).to(self.device)
+        if self.l2_right_reasons:
+            y_log = torch.log(predictions)
+            for layer_name, activations in self.activations.items():
+                right_reasons_loss += self.calculate_right_reasons_loss_per_layer(activations, binary_masks, log_probs=y_log)
+            right_reasons_loss = self.l2_right_reasons * torch.sum(right_reasons_loss / len(self.activations)) # TODO: maybe remove `/ len(...)` as for now Im suggesting taking mean of right reasons for all layers of interest
 
         # weight regularization computation
-        weight_regularization = 0
+        weight_regularization = torch.tensor(0, dtype=torch.float).to(self.device)
         if self.l2_weights: # if non-zero
             for p in self.model_parameters:
                 weight_regularization += (p ** 2).sum()
@@ -51,13 +56,37 @@ class RRRLoss(nn.Module):
         pass
 
     def calculate_right_reasons_loss_per_layer(self, activations, binary_masks, log_probs):
-        inputs = activations # TODO: Need to reshape, current shape is (batch_size, channel_size, pic_size_1, pic_size_2)
-                            # log_probs shape could be (batch_size, num_classes)
-        grad_outputs = torch.ones_like(log_probs) # TODO: not really sure about this, as we've done a logarithm operation on the model outputs.
-        gradByLayers = torch.autograd.grad(log_probs, inputs, grad_outputs=grad_outputs, create_graph=True)
-        A_mul_grad = (binary_masks * gradByLayers) ** 2
+        grad_outputs = torch.ones_like(log_probs, requires_grad=True) # TODO: not really sure about this, as we've done a logarithm operation on the model outputs.
+        gradByLayers = torch.autograd.grad(log_probs, activations, grad_outputs=grad_outputs, create_graph=True)[0] # TODO: im not sure why its returning tuple
+
+        # Scale gradient "images" to the pic size
+        descaled_bin_mask = self.descale_mask(binary_masks, gradByLayers.shape)
+        broadcasted_binary_masks = descaled_bin_mask.expand_as(gradByLayers)
+
+        A_mul_grad = (broadcasted_binary_masks * gradByLayers) ** 2
 
         return torch.sum(A_mul_grad)
+
+    # Scaling functions
+    @staticmethod
+    def scale_grads(grads: torch.Tensor, bin_mask_shape: torch.Size):
+        target_size = bin_mask_shape[2:] # [pic_size_1, pic_size_2]
+
+        # Use interpolate to resize the spatial dimensions of grads
+        # Mode can be 'bilinear', 'nearest', etc., depending on your needs
+        scaled_grads = F.interpolate(grads, size=target_size, mode='bilinear', align_corners=False)
+
+        return scaled_grads
+
+    @staticmethod
+    def descale_mask(mask: torch.Tensor, grads_shape: torch.Size):
+        target_size = grads_shape[2:]  # [size_1, size_2]
+
+        # Use interpolate to resize the spatial dimensions of mask
+        # Mode can be 'bilinear', 'nearest', etc., depending on your needs
+        descaled_mask = F.interpolate(mask, size=target_size, mode='bilinear', align_corners=False)
+
+        return descaled_mask
 
     # Functions to register hooks
 
