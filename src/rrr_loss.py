@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 class RRRLoss(nn.Module):
     def __init__(self, model:nn.Module, layers_of_interest:List[nn.Module], criterion: nn.Module=nn.CrossEntropyLoss(),
-                 rightreasons_lambda: float=1000, weight_regularization_lambda: float=0., device: str="cpu", *args, **kwargs):
+                 rightreasons_lambda: float=1., weight_regularization_lambda: float=0., device: str="cpu", *args, **kwargs):
         super(RRRLoss, self).__init__(*args, **kwargs)
         self.right_answers_loss = criterion
         self.l2_right_reasons = rightreasons_lambda
