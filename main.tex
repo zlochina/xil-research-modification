@@ -1,0 +1,65 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{todonotes}
+\title{BP - RRR}
+
+\newcommand{\itodo}[1]{\todo[inline]{#1}}
+
+\date{January 2025}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+Why solving the problem
+
+Following \cite{schramowski2020making}, ...
+
+
+\section{Theory}
+
+\subsection{Supervised classification}
+
+model, neural network
+ labels,
+ loss (crossentropy...),
+
+
+ \subsection{Explanations}
+
+ \subsubsection{LIME}
+ \label{sec:lime}
+ todo: describe lIME \cite{lime}
+
+\subsubsection{Grad-CAM}
+\label{sec:grad}
+
+
+
+\subsection{Right for the right reason}
+
+
+\section{Experiments}
+
+\subsection{MNIST}
+
+\subsubsection{Artificial dataset}
+
+\subsubsection{Comparison of explainers}
+
+Comparing LIME (Section~\ref{sec:lime}) and GRad-CAm (Section~\ref{sec:grad}).
+
+\subsubsection{RRR}
+
+\section{Conclusion}
+
+what works, what not, how to proceed...
+ 
+
+\itodo{test}
+
+\bibliographystyle{plain}
+\bibliography{bib}
+\end{document}
