@@ -37,10 +37,11 @@
 
 - [ ] Source:
     - [x] Research how to work with pytorch
-    - [ ] Add binary mask A to fit function or to loss function
-    - [ ] Research the code from Plant Phenotyping. (Usage of Dataset, )
-    - [ ] How did they add binary masks to datasets.
-    - [ ] Build jupyter notebook of MLP usage
+    - [x] Add binary mask A to fit function or to loss function
+    - [x] Research the code from Plant Phenotyping. (Usage of Dataset, )
+    - [x] How did they add binary masks to datasets.
+    <!-- - [ ] Build jupyter notebook of MLP usage -->
+    - [x] Build jupyter notebook of RRR usage.
 
 ## Tree of the paper code
 - [ ] `code/`
@@ -80,17 +81,17 @@
 - [ ] `    ├── run_scripts_strategy_analysis`
 - [ ] `    └── run_scripts_user_study`
 
-## Summary. What was done?
-- [ ] Experimented with containers to come up with the environment working for all subprojects to no avail. At least, we've got environment with CUDA and Poetry Python, which could be run on RCI cluster gpus.
-- [ ] Gone through the guide of PyTorch. I guess I will try to build project on PyTorch, which lets running code on CUDA and gives interfaces and implementations for Dataset, Loss function, Model.
-- [ ] ! I haven't been able to test their code as in the end I haven't come up with needed environment to run code adequately.
+<!-- ## Summary. What was done? -->
+<!-- - [ ] Experimented with containers to come up with the environment working for all subprojects to no avail. At least, we've got environment with CUDA and Poetry Python, which could be run on RCI cluster gpus. -->
+<!-- - [ ] Gone through the guide of PyTorch. I guess I will try to build project on PyTorch, which lets running code on CUDA and gives interfaces and implementations for Dataset, Loss function, Model. -->
+<!-- - [ ] ! I haven't been able to test their code as in the end I haven't come up with needed environment to run code adequately. -->
 
-## What is planned to be done?
-- [ ] Build Loss function of differential RRR using binary masks. In progress
-- [ ] Build models using RRR loss function (where binary mask is optional thus RRR Loss function transforms to Cross Entropy Loss function). And apply it on the small datasets used by Research paper (in Fashion MNIST some datasets are automatically generated with the respective binary masks). Try it out in jupyter notebook.
-- [ ] Dataset search. [LLM hint](https://www.perplexity.ai/search/for-my-project-i-need-ekg-data-X0uyEyZ.RnGNSoC80rWxbQ), also try out searching Hugging Face
-- [ ] After finding datasets try to get acquainted with it. Understand whether binary masks could be generated.
-- [ ] Still I haven't started on understanding GradCam or LinearExplanation methods.
+<!-- ## What is planned to be done? -->
+<!-- - [ ] Build Loss function of differential RRR using binary masks. In progress -->
+<!-- - [ ] Build models using RRR loss function (where binary mask is optional thus RRR Loss function transforms to Cross Entropy Loss function). And apply it on the small datasets used by Research paper (in Fashion MNIST some datasets are automatically generated with the respective binary masks). Try it out in jupyter notebook. -->
+<!-- - [ ] Dataset search. [LLM hint](https://www.perplexity.ai/search/for-my-project-i-need-ekg-data-X0uyEyZ.RnGNSoC80rWxbQ), also try out searching Hugging Face -->
+<!-- - [ ] After finding datasets try to get acquainted with it. Understand whether binary masks could be generated. -->
+<!-- - [ ] Still I haven't started on understanding GradCam or LinearExplanation methods. -->
 
 ## QAs
 - [x] __Meaning of RRR?__ Does RRR in out project stands for the differential formula or the whole concept - actually, I mean if we should include discrete algorithms like CounterExamples? For now I included in my view only diffrential formula.
@@ -112,6 +113,8 @@
     * So actually the role of L2 regularization is not that outstanding, if the model without it perfoms well without overfitting, so we should deploy this method only we get to see overfitting.
 - [x] __Training is implemented by back propagation__. That's alright isn't it
     * It is.
+- [ ] My implementation of RRRLoss has a little difference with the original formula provided by the research paper. Instead of focusing on the last convolutional layer, User can define any layer or multiple layers, on which RRR focuses.
+- [ ] I've reread the formula several times, right reasons loss part suggests that binary mask should have the same number of features as the last convolutional layer (meaning binary mask sizes should be the same as the last convolutional layer), but it just does give sense, so in my implementation binary mask should have the same size as the picture, and it is descaled to the sizes of the convolutional layer (e.g. in 08 MNIST we've got 1x28X28 (with one gray channel) images and binary masks also 1x28x28, but the last convolutional layer has size of 32x7x7 (with 32 channels))
 
 ## Flow
 ### Find where RRR is applied
