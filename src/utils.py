@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from pytorch_grad_cam import GradCAM, GuidedBackpropReLUModel
+from pytorch_grad_cam.utils.image import show_cam_on_image
+import numpy
 
 # TODO: remove this class or replace variables with such as `model`, `optimizer`, `loss_fn` etc.
 class ModelConfig:
@@ -122,3 +125,132 @@ class XILUtils:
             test_loss /= num_batches
             correct /= size
             print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+
+
+    # Explainers
+
+    @staticmethod
+    def apply_gradcam(model, target_layers, n_examples, dataset, num_classes, device, shuffle_ds=False, batch_num=0, batch_size=5, guided_backprop=False):
+        # Get batch
+        batch = XILUtils._get_batch_from_dataset(dataset, batch_num, batch_size, shuffle_ds)
+
+        # batch data
+        examples = batch[0]
+        targets = batch[1]
+
+        # Process all examples
+        images = []
+        cam_images = []
+        grayscale_maps = []
+        predictions = []
+        certainties = []
+        is_correct = []
+
+        gb_model = None
+        if guided_backprop:
+            gb_model = GuidedBackpropReLUModel(model=model, device=device)
+
+        model.eval()
+        for index in range(n_examples):
+            example = examples[index]
+            target = targets[index]
+
+            # Get prediction
+            prediction_probs = model(example.unsqueeze(0).to(device))
+            prediction = torch.zeros(num_classes)
+            prediction[prediction_probs.argmax()] = 1
+            certainty = prediction_probs.max().item() * 100
+
+            predictions.append(prediction_probs.argmax().item())
+            certainties.append(certainty)
+            is_correct.append(all(prediction == target))
+
+            print(f"\nExample {index}:")
+            print(f"Shape of example: {example.shape}")
+            print(f"Target of example: {target}")
+            print(f"Predicted target: {prediction} with {certainty:.3f}% certainty. Correct? {all(prediction == target)}")
+
+            # Prepare image
+            img: numpy.ndarray = example.reshape((28, 28, 1)).repeat(1, 1, 3).numpy()
+            images.append(img)
+
+            # Generate GradCAM
+            with GradCAM(model=model, target_layers=target_layers) as cam:
+                input_tensor = example.unsqueeze(0)
+                grayscale_cam = cam(input_tensor=input_tensor, targets=None, aug_smooth=False, eigen_smooth=False)
+                grayscale_cam = numpy.squeeze(grayscale_cam, axis=0) # squeeze for example from (1, 28, 28) to (28, 28)
+                if guided_backprop:
+                    grayscale_cam *= numpy.squeeze(gb_model(input_tensor, target_category=None), axis=-1)
+
+                grayscale_maps.append(grayscale_cam)
+
+            cam_image = show_cam_on_image(img, grayscale_cam, use_rgb=False)
+            cam_images.append(cam_image)
+
+        return dict(images=images, cam_images=cam_images, grayscale_maps=grayscale_maps, predictions=predictions,
+                    certainties=certainties, is_correct=is_correct)
+
+
+    @staticmethod
+    def plot_grad_cam(gradcam_aggregated_dict, labels, n_examples, plt):
+        predictions = gradcam_aggregated_dict["predictions"]
+        certainties = gradcam_aggregated_dict["certainties"]
+        is_correct = gradcam_aggregated_dict["is_correct"]
+        cam_images = gradcam_aggregated_dict["cam_images"]
+        images = gradcam_aggregated_dict["images"]
+        grayscale_maps = gradcam_aggregated_dict["grayscale_maps"]
+        # Plot all examples
+        fig, axes = plt.subplots(n_examples, 3, figsize=(18, 6 * n_examples))
+        if n_examples == 1:
+            axes = axes.reshape(1, -1)
+
+        for idx in range(n_examples):
+            # Create title with prediction and certainty
+            pred_title = f'Predicted: {labels[predictions[idx]]} ({certainties[idx]:.1f}%). Prediction is {"" if is_correct[idx] else "NOT "}correct'
+
+            # First subplot: CAM Overlay
+            axes[idx, 0].imshow(cam_images[idx], cmap='viridis')
+            axes[idx, 0].set_title(f'CAM Overlay\n{pred_title}')
+            axes[idx, 0].axis('off')
+
+            # Second subplot: Original Image
+            axes[idx, 1].imshow(images[idx], cmap='viridis')
+            axes[idx, 1].set_title(f'Original\n{pred_title}')
+            axes[idx, 1].axis('off')
+
+            # Third subplot: Attention Map
+            axes[idx, 2].imshow(grayscale_maps[idx])
+            axes[idx, 2].set_title(f'Attention Map\n{pred_title}')
+            axes[idx, 2].axis('off')
+
+        plt.tight_layout()
+        plt.show()
+
+
+    @staticmethod
+    def apply_and_show_gradcam(model, target_layers, n_examples, dataset, num_classes, labels, plt, device, shuffle_ds=False, batch_num=0, batch_size=5, guided_backprop=False):
+        # Calculate GradCAM
+        aggregated_gradcam_dict = XILUtils.apply_gradcam(model, target_layers, n_examples, dataset, num_classes, device=device, batch_num=batch_num,
+                               batch_size=batch_size, shuffle_ds=shuffle_ds, guided_backprop=guided_backprop)
+
+        XILUtils.plot_grad_cam(
+            aggregated_gradcam_dict,
+            labels,
+            n_examples,
+            plt=plt
+        )
+
+    # Method helpers
+    @staticmethod
+    def _get_batch_from_dataset(dataset, batch_num, batch_size, shuffle_ds):
+        # dataloader
+        gradcam_dataloader = DataLoader(dataset, batch_size, shuffle=shuffle_ds)
+        dataloader_iterator = iter(gradcam_dataloader)
+        batch = next(dataloader_iterator)
+        for i in range(batch_num):
+            if i == batch_num - 1:
+                batch = next(dataloader_iterator)
+            else:
+                next(dataloader_iterator)
+
+        return batch
