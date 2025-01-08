@@ -18,15 +18,20 @@
 \tableofcontents
 
 \section{Introduction}
+\label{sec:introduction}
 
 Why solving the problem
+\itodo{write introduction}
 
 Following \cite{schramowski2020making}, ...
 
 
 \section{Theory}
+\label{sec:theory}
 
 \subsection{Supervised classification}
+\label{subsec:sup-class}
+\itodo{describe supervised classificaiton section}
 
 model, neural network
  labels,
@@ -34,35 +39,50 @@ model, neural network
 
 
 \subsection{Explanations}
-
-%\subsubsection{LIME}
-%\label{sec:lime}
-%todo: describe lIME \cite{lime}
+\label{subsec:explanations}
 
 \subsubsection{Grad-CAM}
-\label{sec:grad}
+\label{subsubsec:gradcam}
+\itodo{Describe gradcam}
+\itodo{Refer to external paper about Grad-CAM}
+
+\subsubsection{Guided Grad-CAM}
+\label{subsubsec:guided-gradcam}
+\itodo{Described guided Grad-CAM}
+\itodo{Refer to external paper about Grad-CAM}
 
 
-
-\subsection{Right for the right reason}
-
+\subsection{Right for the right reasons}
+\label{subsec:rrr-theory}
+\itodo{Describe differential method of Right for the right reasons}
+\itodo{Paste equation from the reference paper, but update according to modifications or use both equations}
+\itodo{Describe modification 1: computing right reasons for every User-given convolutional layer}
+\itodo{Describe modificaiton 2: downscaling binary masks to convolutional layer size}
 
 \section{Experiments}
+\label{sec:experiments}
 
 \subsection{MNIST}
+\label{subsec:08-mnist}
+\itodo{Describe 08 MNIST experiment}
 
 \subsubsection{Artificial dataset}
+\itodo{Note that we narrowed down original MNIST dataset}
+\itodo{Describe and argument creation of artificial "misleading" dataset}
 
 \subsubsection{Comparison of explainers}
 
-Comparing LIME (Section~\ref{sec:lime}) and Grad-Cam (Section~\ref{sec:grad}).
+Comparing Grad-CAM (Section~\ref{subsubsec:gradcam}) and Guided Grad-CAM (Section~\ref{subsubsec:guided-gradcam}).
+\itodo{Describe comparisson of explainers}
+\itodo{Add images to support comparisson}
 
 \subsubsection{RRR}
 
 \section{Conclusion}
+\label{sec:conclusion}
 
 what works, what not, how to proceed...
- 
+
 
 \bibliographystyle{plain}
 \bibliography{bib}
