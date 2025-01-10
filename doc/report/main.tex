@@ -79,7 +79,6 @@ rejects confounding factors as part of the classification's explanation.
 
 \subsection{MNIST}
 \label{subsec:08-mnist}
-\itodo{Describe 08 MNIST experiment}
 
 Thus, we take a standard \emph{MNIST} (\itodo{Maybe add a theory section about this with a brief description})dataset
 and narrow it down in such way, that it would contain only zeros and eights.
@@ -107,10 +106,9 @@ such attention maps what is the difference between given instances, so it is not
 \begin{figure}
  \centering
  \includegraphics[width=0.5\textwidth]{imgs/exp_2_5_gradcam}
- \caption{Grad-CAM attention map}
+ \caption{Grad-CAM attention map.}
  \label{fig:gradcam_exp}
 \end{figure}
-\itodo{Maybe we should reduce number of examples on the figure to 2}
 
 That's why we've decided to use Guided Grad-CAM (Section~\ref{subsubsec:guided-gradcam}), which provides more detailed
 explanation, than Grad-CAM. As could be seen on Figure~\ref{fig:guided_gradcam_exp}
@@ -119,19 +117,60 @@ we've somewhat achieved our goal and that is our model differs zeros and eights 
 \begin{figure}
  \centering
  \includegraphics[width=0.5\textwidth]{imgs/exp_2_5_guided_gradcam}
- \caption{Guided Grad-CAM attention map. CAM Overlay in this figure did not work correctly}
+ \caption{Guided Grad-CAM attention map. CAM Overlay in this figure did not work correctly.}
  \label{fig:guided_gradcam_exp}
 \end{figure}
 \itodo{Update CAM overlay in Guided Grad-CAM}
 \itodo{Maybe we should reduce number of examples on the figure to 2}
 
 \subsubsection{Artificial dataset}
-\itodo{Note that we narrowed down original MNIST dataset}
-\itodo{Describe and argument creation of artificial "misleading" dataset}
+\itodo{Im thinking of adding photos, which showcases that undertrained model with non-modified 08 dataset also has learned to classify items by the background}
+In previous subsection we showed that our trained model was trained well and its explanations of the classification tasks seem
+to be good too, but what actually happens when we gather such dataset, that may have additional \emph{not necessarily helpful} patterns? \itodo{Maybe we should find some sources to support our argument here?}
+
+We decided to add a dot to every sample of eight in our dataset, as shown on Figure~\ref{fig:dotted_ds} to represent
+a dataset gathered from within \emph{limited environment}.
+
+\begin{figure}
+ \centering
+ \includegraphics[width=0.5\textwidth]{imgs/zero_eight_dot}
+ \caption{A pair of zero and "dotted" eight.}
+ \label{fig:dotted_ds}
+\end{figure}
+
+We have trained the model on such dataset, applied Guided Grad-CAM and, although the accuracy reaches same values as the
+model trained on unmodified dataset, the explanation of classifying eights mostly comes from the given dot
+(Figure~\ref{fig:guided-gradcam-dotted}).
+Furthermore, when evaluating the model on unmodified dataset, accuracy may fall down to $60\%$ or even $50\%$.
+
+\itodo{Maybe we actually need to add a table of accuracies and calculate average}
+
+
+\begin{figure}
+ \centering
+ \includegraphics[width=0.5\textwidth]{imgs/exp_4_dotted_8_gradcam}
+ \caption{Guided Grad-CAM on dotted dataset.}
+ \label{fig:guided-gradcam-dotted}
+\end{figure}
 
 \subsubsection{RRR}
+At this point of our experiment we retrain our model with the \emph{same} hyperparameters, \emph{same} model architecture
+and \emph{same} optimizer, but we use ``right for the right reasons'' loss function (Section~\ref{subsec:rrr-theory})
+instead of previously used Cross-entropy loss.
+As for the needed binary masks by RRR method, we define them as follows: 1) put 1s in the region of the dot; 2) 0 otherwise.
+
+\begin{figure}
+ \centering
+ \includegraphics[width=0.5\textwidth]{imgs/exp_4_dotted_guided_gradcam_rrr}
+ \caption{}
+ \label{fig:guided-gradcam-dotted-rrr}
+\end{figure}
+
+As could be seen on the Figure~\ref{fig:guided-gradcam-dotted-rrr} our model learnt to reject the dot, furthermore it
+learnt to differ zeros and eight by the intuition we suggested in Figure~\ref{fig:08_diff}
 
 \section{Plans|improvements}
+\label{sec:plans|improvements}
 \itodo{try out learning, when binary masks are really costly to make, in other words, model learns and sometimes queries
 binary mask}
 
