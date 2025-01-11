@@ -79,8 +79,18 @@ Cross-entropy loss function, a specialised loss function for supervised classifi
 \itodo{Im not sure if I should somehow describe it more, maybe suggest an intuition to the reader}
 
 \subsubsection{Convolutional Neural Network}
-\itodo{Add definition}
-\itodo{Describe convolutional layer, pooling layer, fully-connected layer}
+Convolutional Neural Network (aka CNN) is a type of Neural Network, that is well-suited for image recognition.
+It is usually made up of such multiple layers as:
+\begin{itemize}
+ \item \textbf{Convolutional layers}: layers, which apply convolutional operations to input, using \emph{filters} (aka kernels).
+ These kind of operations help to detect complex features such as edges, textures and other patterns.
+ \item \textbf{Pooling layers}: layers, which reduce spatial dimensions of the input.
+ These operations decrease computational complexity - speed up processing.
+ \item \textbf{Activation Function layers}: non-linear activation functions,
+ which add non-linearity to the model and help model to learn more complex relationships in the data.
+ The most common such layer is \emph{Rectified Linear Unit} (ReLU)
+ \item \textbf{Fully connected layers (aka Dense layers)}: this layer connect every neuron to every neuron of the next layer.
+\end{itemize}
 
 \subsection{Explanations}
 \label{subsec:explanations}
