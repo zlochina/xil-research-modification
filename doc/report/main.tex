@@ -1,6 +1,7 @@
 \documentclass{article}
 \usepackage{graphicx} % Required for inserting images
 \usepackage{todonotes}
+\usepackage{amsmath}
 \title{BP - RRR}
 
 \newcommand{\itodo}[1]{\todo[inline]{#1}}
@@ -36,12 +37,52 @@ Following \cite{schramowski2020making}, ...
 \label{subsec:sup-class}
 \itodo{describe supervised classificaiton section}
 \itodo{add diagram showing our CNN architecture}
+\subsubsection{Neural Network}
+\itodo{Add definition of neural network, its parts, }
+Model in Machine Learning refers to the mathematical representation of a process, that has been trained on data.
+One of the most important properties of the model is that one way or another (\itodo{non-proffesional vocabulary} it encapsulates the patterns of the data.
+Neural network (aka NN) is a specific type of the model in Machine Learning,
+which aims to mimic the work patterns of animal brain neurons.
+Neural network is built from layers, basic structure of NN is: 1 input layer, 1 output layer,
+and multiple hidden layers between the previous two.
+Layer is built from nodes, which have relationships with nodes from neighbouring layers.
+Each node receives so-called \emph{signals} from connected nodes, processes them and pushes new signal to other connected nodes.
+This \emph{signal} is a number, that is the result of \emph{activation function}
+applied on \emph{weighted signals from the previous layer}.
+Signals are weighted by weights, that are assigned to the corresponding relationship the signal comes from.
+When the model is learning or is being trained, what actually happens is that weights on every relationship are adjusted.
+\begin{itemize}
+ \item Data, that is sent to input layer, is commonly referred to as ``inputs'', ``Xs''.
+ \item Data, that are the result of the output layer, is commonly referred to as ``outputs'', ``predictions''.
+ \item Data, that are the expected results of processed inputs, is commonly referred to as ``targets'', ``labels'', ``ys''.
+\end{itemize}
 
-model, neural network
- labels,
- loss (crossentropy...),
- optimizer (SGD, ADAM)
+Supervised Learning is a technique, which utilises \emph{labels} to create a model that can predict correct outputs.
+Other techniques usually don't rely on \emph{labels}.
 
+To evaluate if the model performs well or bad \emph{loss/cost functions} are defined.
+Usually these functions evaluate how much model's predictions are far from ``ground truth'' predictions.
+In other words, should we minimize the \emph{loss} produced by the cost function, we may achieve a great performance
+of the model.
+
+
+In order to minimize the loss we use yet another Machine Learning technique called ``Optimizers''.
+The most basic optimizing technique is \emph{Stochastic Gradient Descent} aka SGD\@.
+\itodo{Do I really need to explain SGD here, we do not use it}
+\itodo{Explain ADAM}
+
+\itodo{I guees we need to describe learning: forward and back propagation??}
+
+\subsubsection{Cross-entropy loss function}
+\label{subsubsec:cross-entropy-loss}
+Cross-entropy loss function, a specialised loss function for supervised classification task given by:
+\[L = -\frac{1}{N} \sum_{i=1}^{N} \sum_{j=1}^{C} y_{ij} \log(\hat{y}_{ij})
+\text{, where N is number of examples and C is number of classes}\]
+\itodo{Im not sure if I should somehow describe it more, maybe suggest an intuition to the reader}
+
+\subsubsection{Convolutional Neural Network}
+\itodo{Add definition}
+\itodo{Describe convolutional layer, pooling layer, fully-connected layer}
 
 \subsection{Explanations}
 \label{subsec:explanations}
@@ -62,6 +103,20 @@ According to \cite{Selvaraju_2019}
 \label{subsec:rrr-theory}
 \itodo{Describe differential method of Right for the right reasons}
 \itodo{Paste equation from the reference paper, but update according to modifications or use both equations}
+\begin{samepage}
+\[
+L(\theta, X, y, A) = \sum_{n=1}^{N} \sum_{k=1}^{K} -c_k y_{nk} \log (\hat{y}_{nk}) \quad \text{(Right answers)}
+\]
+
+\[
++ \lambda_1 \sum_{n=1}^{N} \sum_{d=1}^{D} \left( A_{nd} \frac{\delta}{\delta h_{nd}} \sum_{k=1}^{K} c_k \log (\hat{y}_{nk}) \right)^2 \quad \text{(Right reasons)}
+\]
+
+\[
++ \lambda_2 \sum_{i} \theta_i^2 \quad \text{(Weight regularization)}
+\]
+\end{samepage}
+ 
 \itodo{Describe modification 1: computing right reasons for every User-given convolutional layer}
 \itodo{Describe modificaiton 2: downscaling binary masks to convolutional layer size}
 
@@ -70,20 +125,26 @@ According to \cite{Selvaraju_2019}
 Before approaching a bigger experiment, we've decided to come up with a simple one, which would show some core
 aspects of the introduced methodology and also show us what tools and methods we need to focus our attention to.
 
-So what we want in summary is to take a particular dataset for the classification task; train a model according
-to subsection~\ref{subsec:sup-class}; try out some of the explainers; choose the one,
-which would offer explanations satisfying our needs.
-Find a scenario, where model trained with so-called \emph{common approach} doesn't perform well; retrain the model using
-novel approach aka RRRLoss (subsection \ref{subsec:rrr-theory}) and show that newly trained model
-rejects confounding factors as part of the classification's explanation.
+So what we want in summary is:
+\begin{enumerate}
+\item Take a particular dataset for the classification task;
+\item Train a model with so-called \emph{common approach};
+\item Try out some of the explainers and choose the one, which would offer explanations satisfying our needs;
+\item Find a scenario, where model trained with common approach doesn't perform well;
+\item Retrain the model using novel approach aka RRRLoss (Subsection~\ref{subsec:rrr-theory});
+\item Show that newly trained model rejects confounding factors as part of the classification's explanation.
+\end{enumerate}
 
 \subsection{MNIST}
 \label{subsec:08-mnist}
 
+\itodo{Briefly describe the model architecture, optimizer, loss function we used}
+\itodo{I think we need to add reference to the jupyter notebook of the experiment (we need to show somehow our hyperparameters)}
+
 Thus, we take a standard \emph{MNIST} (\itodo{Maybe add a theory section about this with a brief description})dataset
 and narrow it down in such way, that it would contain only zeros and eights.
 The reason for such a choice is that an intuitive explanation of the difference between such instances should be around
-middle part of the image, where eights have 'cross' as demonstrated on the figure~\ref{fig:08_diff}.
+middle part of the image, where eights have ``cross'' as demonstrated on the figure~\ref{fig:08_diff}.
 And this is exactly what we expect the explainer to annotate for us as the \emph{right reason} for the classification.
 
 \begin{figure}
@@ -117,7 +178,7 @@ we've somewhat achieved our goal and that is our model differs zeros and eights 
 \begin{figure}
  \centering
  \includegraphics[width=0.5\textwidth]{imgs/exp_2_5_guided_gradcam}
- \caption{Guided Grad-CAM attention map. CAM Overlay in this figure did not work correctly.}
+ \caption{Guided Grad-CAM attention map.}
  \label{fig:guided_gradcam_exp}
 \end{figure}
 \itodo{Update CAM overlay in Guided Grad-CAM}
