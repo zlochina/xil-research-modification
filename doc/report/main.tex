@@ -5,6 +5,7 @@
 \title{BP - RRR}
 
 \newcommand{\itodo}[1]{\todo[inline]{#1}}
+\newcommand{\vtodo}[1]{\todo[inline,color=purple!50!white]{#1}}
 
 \date{January 2025}
 
@@ -14,6 +15,7 @@
 
 \begin{abstract}
 \itodo{Add abstract}
+\vtodo{Switch to class "report"}
 \end{abstract}
 
 \tableofcontents
@@ -55,6 +57,8 @@ When the model is learning or is being trained, what actually happens is that we
  \item Data, that are the expected results of processed inputs, is commonly referred to as ``targets'', ``labels'', ``ys''.
 \end{itemize}
 
+\vtodo{Introduce also more formally as a parmateric function $y=f_{\theta}(X)$, where $\theta$ are learnable parameters. }
+
 Supervised Learning is a technique, which utilises \emph{labels} to create a model that can predict correct outputs.
 Other techniques usually don't rely on \emph{labels}.
 
@@ -68,8 +72,10 @@ In order to minimize the loss we use yet another Machine Learning technique call
 The most basic optimizing technique is \emph{Stochastic Gradient Descent} aka SGD\@.
 \itodo{Do I really need to explain SGD here, we do not use it}
 \itodo{Explain ADAM}
+\vtodo{You can introduce general SGD in general (with preconditioning) and ADAM as a special case how to compute the precondition. But this is not too important. }
 
 \itodo{I guees we need to describe learning: forward and back propagation??}
+\vtodo{Not really. Just say, that the gradients are computed using automatic differentiation and use proper references.}
 
 \subsubsection{Cross-entropy loss function}
 \label{subsubsec:cross-entropy-loss}
@@ -77,6 +83,7 @@ Cross-entropy loss function, a specialised loss function for supervised classifi
 \[L = -\frac{1}{N} \sum_{i=1}^{N} \sum_{j=1}^{C} y_{ij} \log(\hat{y}_{ij})
 \text{, where N is number of examples and C is number of classes}\]
 \itodo{Im not sure if I should somehow describe it more, maybe suggest an intuition to the reader}
+\vtodo{Some details would be nice. E.g. correspondence to Bernoulli likelihoood.}
 
 \subsubsection{Convolutional Neural Network}
 Convolutional Neural Network (aka CNN) is a type of Neural Network, that is well-suited for image recognition.
@@ -149,8 +156,9 @@ So what we want in summary is:
 \itodo{Briefly describe the model architecture, optimizer, loss function we used}
 \itodo{add diagram showing our CNN architecture}
 \itodo{I think we need to add reference to the jupyter notebook of the experiment (we need to show somehow our hyperparameters)}
+\vtodo{hyperparameters should be listed for sure. Jupyter notebook is optional.}
 
-Thus, we take a standard \emph{MNIST} (\itodo{Maybe add a theory section about this with a brief description})dataset
+Thus, we take a standard \emph{MNIST} (\itodo{Maybe add a theory section about this with a brief description})\vtodo{Just a reference, it is known well enough} dataset
 and narrow it down in such way, that it would contain only zeros and eights.
 The reason for such a choice is that an intuitive explanation of the difference between such instances should be around
 middle part of the image, where eights have ``cross'' as demonstrated on the figure~\ref{fig:08_diff}.
@@ -195,6 +203,7 @@ we've somewhat achieved our goal and that is our model differs zeros and eights 
 
 \subsubsection{Artificial dataset}
 \itodo{Im thinking of adding photos, which showcases that undertrained model with non-modified 08 dataset also has learned to classify items by the background}
+\vtodo{Make this an extra subsection. Idea with undertraiing is interesting.}
 In previous subsection we showed that our trained model was trained well and its explanations of the classification tasks seem
 to be good too, but what actually happens when we gather such dataset, that may have additional \emph{not necessarily helpful} patterns? \itodo{Maybe we should find some sources to support our argument here?}
 
@@ -214,6 +223,7 @@ model trained on unmodified dataset, the explanation of classifying eights mostl
 Furthermore, when evaluating the model on unmodified dataset, accuracy may fall down to $60\%$ or even $50\%$.
 
 \itodo{Maybe we actually need to add a table of accuracies and calculate average}
+\vtodo{yes, this would help a lot.}
 
 
 \begin{figure}
@@ -243,6 +253,8 @@ learnt to differ zeros and eight by the intuition we suggested in Figure~\ref{fi
 \label{sec:plans|improvements}
 \itodo{try out learning, when binary masks are really costly to make, in other words, model learns and sometimes queries
 binary mask}
+
+\vtodo{I would be interested in a sensitivity study: i.e. what if there is $n$ samples of 8s that no not have the dot? How many $n$ I need to get to the accuracy (and right reason) comparable to RRR? }
 
 \section{Conclusion}
 \label{sec:conclusion}
