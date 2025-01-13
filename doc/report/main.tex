@@ -1,7 +1,8 @@
-\documentclass{article}
+\documentclass{report}
 \usepackage{graphicx} % Required for inserting images
 \usepackage{todonotes}
 \usepackage{amsmath}
+\usepackage{amsfonts}
 \title{BP - RRR}
 
 \newcommand{\itodo}[1]{\todo[inline]{#1}}
@@ -15,7 +16,6 @@
 
 \begin{abstract}
 \itodo{Add abstract}
-\vtodo{Switch to class "report"}
 \end{abstract}
 
 \tableofcontents
@@ -104,15 +104,59 @@ It is usually made up of such multiple layers as:
 
 \subsubsection{Grad-CAM}
 \label{subsubsec:gradcam}
-\itodo{Describe gradcam}
-\itodo{Refer to external paper about Grad-CAM}
+\emph{Gradient-weighted Class Activation Mapping (Grad-CAM)} is an explanation technique proposed by
+\cite[Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization]{Selvaraju_2019} paper.
+It produces `visual explanation' for decisions of the vast majority of CNN-based models.
+It uses the gradients of the target concept flowing into the final convolutional layer resulting into localization map
+highlighting regions of the image, which contributed to the prediction of the model.
+
+According to \cite{Selvaraju_2019} the \emph{class-discriminative localization map Grad-CAM $L_{Grad-CAM}^c \in \mathbb{R}^{uxv}$}
+for any class $c$ is computed as follows:
+\begin{samepage}
+    \[\alpha_k^c = \overbrace{\frac{1}{Z} \sum_i^u \sum_j^v}^{\text{global average pooling}}
+    \underbrace{\frac{\partial y^c}{\partial A_{ij}^k}}_{\text{gradients via backprop}}\]
+
+    \[L_{Grad-CAM}^c = ReLU(\underbrace{\sum_k \alpha_k^c A^k}_{\text{linear combination}}) \quad \text{,}\]
+\end{samepage}
+where $y^c$ stands for the score for class $c$, $A^k$ is the $k$-th feature map activations of the convolutional layer, $Z = u * v$.
+\itodo{Not really sure if we should the following example: So for example we've got a convolutional layer, which outputs 32 channels of 14 by 14 feature maps, k should be in range [1,32]. Because it was not obvious to me, that feature map activations was referring to every channel instead of the tensor of all channels.}
 
 \subsubsection{Guided Grad-CAM}
 \label{subsubsec:guided-gradcam}
-\itodo{Described guided Grad-CAM}
-\itodo{Refer to external paper about Grad-CAM}
-According to \cite{Selvaraju_2019}
 
+\emph{Guided Grad-CAM}~\cite{Selvaraju_2019} is an advanced version of \emph{Grad-CAM} (Subsection~\ref{subsubsec:gradcam}),
+which focuses on highlighting fine-grained details against \emph{Grad-CAM}'s showing ``relevant'' regions.
+
+Before we dive in how \emph{Guided Grad-CAM} is computed, we should talk about one of the constructs of this method and that is \emph{Guided Backpropagation},
+a pixel-space gradient visualization technique proposed by \emph{Springenberg}\cite{springenberg2014striving}.
+
+We take forward pass of the input until the convolutional layer we are interested in as shown on the Figure~\ref{fig:guided_backprop_forward}.
+And after that we ``reconstruct'' the image as shown on the Figure~\ref{fig:guided_backprop_backward} and aggregated in equation~\ref{eq:guided-backprop}.
+
+\begin{equation}
+ R_i^l = (f_i^l > 0) \cdot (R_i^{l+1} > 0) \cdot R_i^{l+1} \text{,}
+ \label{eq:guided-backprop}
+\end{equation}
+where $R_i^{l+1} = \frac{\partial \text{out}}{\partial f_i^{l+1}}$.
+\begin{figure}
+ \centering
+ \includegraphics[width=0.75\textwidth]{imgs/guided_backpropagation_1}
+ \caption{Forward pass of the image}
+ \label{fig:guided_backprop_forward}
+\end{figure}
+
+\begin{figure}
+ \centering
+ \includegraphics[width=0.75\textwidth]{imgs/guided_backpropagation_2}
+ \caption{Backward pass of the output to ``reconstruct'' the image}
+ \label{fig:guided_backprop_backward}
+\end{figure}
+
+\emph{Guided Grad-CAM} is a combination of the strength of both techniques.
+It is computed as element-wise multiplication of the \emph{Guided Backpropagation}'s ``reconstructed image''
+and \emph{Grad-CAM}'s attention map (upsampled to the input image resolution using \emph{bilinear interpolation} according to~\cite{Selvaraju_2019}).
+
+\itodo{Maybe we should cut out Guided Backpropagation into its own subsubsection}
 
 \subsection{Right for the right reasons}
 \label{subsec:rrr-theory}
@@ -253,6 +297,7 @@ learnt to differ zeros and eight by the intuition we suggested in Figure~\ref{fi
 \label{sec:plans|improvements}
 \itodo{try out learning, when binary masks are really costly to make, in other words, model learns and sometimes queries
 binary mask}
+\itodo{Counterfactual explanations suggested by Grad-CAM paper sounds interesting. I think we might use it, but not sure for what.}
 
 \vtodo{I would be interested in a sensitivity study: i.e. what if there is $n$ samples of 8s that no not have the dot? How many $n$ I need to get to the accuracy (and right reason) comparable to RRR? }
 
