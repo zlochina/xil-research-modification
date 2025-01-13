@@ -119,7 +119,7 @@ for any class $c$ is computed as follows:
     \[L_{Grad-CAM}^c = ReLU(\underbrace{\sum_k \alpha_k^c A^k}_{\text{linear combination}}) \quad \text{,}\]
 \end{samepage}
 where $y^c$ stands for the score for class $c$, $A^k$ is the $k$-th feature map activations of the convolutional layer, $Z = u * v$.
-\itodo{Not really sure if we should the following example: So for example we've got a convolutional layer, which outputs 32 channels of 14 by 14 feature maps, k should be in range [1,32]. Because it was not obvious to me, that feature map activations was referring to every channel instead of the tensor of all channels.}
+\itodo{Not really sure if we should the following example: So for example we've got a convolutional layer, which outputs 32 channels of 14 by 14 feature maps, k should be in range [1,32]. Because it was not obvious to me, that feature map activations was referring to every channel individually instead of the tensor of all channels.}
 
 \subsubsection{Guided Grad-CAM}
 \label{subsubsec:guided-gradcam}
@@ -160,24 +160,50 @@ and \emph{Grad-CAM}'s attention map (upsampled to the input image resolution usi
 
 \subsection{Right for the right reasons}
 \label{subsec:rrr-theory}
-\itodo{Describe differential method of Right for the right reasons}
-\itodo{Paste equation from the reference paper, but update according to modifications or use both equations}
+\emph{Right for the right reasons}, the core of our paper, is a loss function for a differentiable model suggested by~\cite{ross2017right} and modified by~\cite{schramowski2020making}.
+\itodo{Not sure about this statement as it is valid for now and could be changed as there is CounterExamples method (and maybe others). I would rather say that the core of our paper is research of XIL.}
+``Right for the right reasons'' loss (further referred as \emph{RRR loss}) is defined as follows:
 \begin{samepage}
-\[
-L(\theta, X, y, A) = \sum_{n=1}^{N} \sum_{k=1}^{K} -c_k y_{nk} \log (\hat{y}_{nk}) \quad \text{(Right answers)}
-\]
+ \begin{equation}
+  \label{eq:rrr-right-answers}
+  L(\theta, X, y, A) = \sum_{n=1}^{N} \sum_{k=1}^{K} -c_k y_{nk} \log (\hat{y}_{nk}) \quad \text{(Right answers)}
+  \end{equation}
 
-\[
-+ \lambda_1 \sum_{n=1}^{N} \sum_{d=1}^{D} \left( A_{nd} \frac{\delta}{\delta h_{nd}} \sum_{k=1}^{K} c_k \log (\hat{y}_{nk}) \right)^2 \quad \text{(Right reasons)}
-\]
+ \begin{equation}
+  \label{eq:rrr-right-reasons}
+  + \lambda_1 \sum_{n=1}^{N} \sum_{d=1}^{D} \left( A_{nd} \frac{\delta}{\delta h_{nd}} \sum_{k=1}^{K} c_k \log (\hat{y}_{nk}) \right)^2 \quad \text{(Right reasons)}
+ \end{equation}
 
-\[
-+ \lambda_2 \sum_{i} \theta_i^2 \quad \text{(Weight regularization)}
-\]
+ \begin{equation}
+  \label{eq:rrr-l2-reg}
+  + \lambda_2 \sum_{i} \theta_i^2 \quad \text{(Weight regularization)}
+  \end{equation}
 \end{samepage}
- 
-\itodo{Describe modification 1: computing right reasons for every User-given convolutional layer}
-\itodo{Describe modificaiton 2: downscaling binary masks to convolutional layer size}
+where $\theta$ is a vector of weights, $X$ is the inputs, $y$ is labels, $A$ is binary masks, $c$ is a class weight,
+$\hat{y}$ is the predictions and $h$ is feature map of the convolutional layer, usually the last.
+$N$ stands for the number of examples, $K$ is for the number of classes our model outputs, $D$ is the number of features in feature map.
+RRR loss's right answers in equation's part (\ref{eq:rrr-right-answers}) is the
+\emph{Cross-entropy loss} function (Subsection~\ref{subsubsec:cross-entropy-loss}) modified with class weights.
+RRR loss's weight regularization in equation's part (\ref{eq:rrr-l2-reg}) is common L2 regularization preventing overfitting of the model.
+The novel part is in equation's part (\ref{eq:rrr-right-reasons}), which tries to penalize the gradients of
+the convolutional layer from being too large in the regions marked by binary masks.
+The $\lambda$ values are used to weight the different regularizations.
+According to~\cite{ross2017right} the regularization parameter $\lambda_{1}$ should be set such that the
+``right answers'' and ``right reasons'' terms have similar orders of magnitude.
+
+We suggest a modification to this loss function, particularly to the ``right reasons'' equation's part (\ref{eq:rrr-right-reasons}),
+and that is an additional sum through the all convolutional layers of the interest as shown in (\ref{eq:rrr-modified}):
+\begin{align}
+ L(\theta, X, y, A) = \sum_{n=1}^{N} \sum_{k=1}^{K} -c_k y_{nk} \log (\hat{y}_{nk}) \\
+ + \lambda_1 \sum_{l=1}^{L} \sum_{n=1}^{N} \sum_{d=1}^{D} \left( A_{nd} \frac{\delta}{\delta h_{nd}^{l}} \sum_{k=1}^{K} c_k \log (\hat{y}_{nk}) \right)^2 \label{eq:rrr-modified} \\
+ + \lambda_2 \sum_{i} \theta_i^2
+\end{align}
+\itodo{maybe add l2 regularization theory subsection}
+
+It is also important to note, that in implementations of RRR loss binary masks are created with the size of the original input,
+rather than the size of feature maps of the convolutional layers of interest.
+And during the computation of loss every binary mask is downscaled to the size of each convolutional layer using bilinear interpolation.
+\itodo{statement is really ambitious, as I've got only 2 sources, my implementation and implementation of \cite{ross2017right}}
 
 \section{Experiments}
 \label{sec:experiments}
@@ -286,7 +312,7 @@ As for the needed binary masks by RRR method, we define them as follows: 1) put 
 \begin{figure}
  \centering
  \includegraphics[width=0.5\textwidth]{imgs/exp_4_dotted_guided_gradcam_rrr}
- \caption{}
+ \caption{Guided Grad-CAM on dotted dataset. Model trained with RRR.}
  \label{fig:guided-gradcam-dotted-rrr}
 \end{figure}
 
@@ -298,6 +324,7 @@ learnt to differ zeros and eight by the intuition we suggested in Figure~\ref{fi
 \itodo{try out learning, when binary masks are really costly to make, in other words, model learns and sometimes queries
 binary mask}
 \itodo{Counterfactual explanations suggested by Grad-CAM paper sounds interesting. I think we might use it, but not sure for what.}
+\itodo{This seems interesting: \cite[At the other extreme, when A is a matrix of all 1s, it encourages the model to have small gradients with respect to its inputs; this can improve generalization on its own Drucker and Le Cun, 1992.]{ross2017right}}
 
 \vtodo{I would be interested in a sensitivity study: i.e. what if there is $n$ samples of 8s that no not have the dot? How many $n$ I need to get to the accuracy (and right reason) comparable to RRR? }
 
