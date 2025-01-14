@@ -283,7 +283,6 @@ which is applied to most trainings mentioned in this subsection (should training
  \item \textbf{Other Training details}: batch size=64, number of epochs=2, train data size=11773,
  test data size=1954
 \end{itemize}
-\itodo{Go through mentions of training and check is something differs from our model description}
 
 \begin{figure}
  \centering
@@ -332,8 +331,6 @@ we've somewhat achieved our goal and that is our model differs zeros and eights 
  \caption{Guided Grad-CAM attention map.}
  \label{fig:guided_gradcam_exp}
 \end{figure}
-\itodo{Update CAM overlay in Guided Grad-CAM}
-\itodo{Maybe we should reduce number of examples on the figure to 2}
 
 \subsubsection{Undertrained model's explanations}
 We also wanted to see what explanations the model has, if it was undertrained.
@@ -371,13 +368,13 @@ Furthermore, when evaluating the model on unmodified dataset, accuracy may fall 
  \label{tab:avg-accuracy-rrr}
  \centering
  \caption{Table showing average accuracy of the model trained with RRR loss function throughout 3 executions.}
-\begin{tabular}{|l|c|c|}
+\begin{tabular}{|l||c|c|}
  \hline
- Average accuracy with RRR loss & Training dataset & Test dataset \\
+ Average accuracy with RRR loss & Train dataset & Test dataset \\
  \hline \hline
  $\lambda_1=0;\lambda_2=0$ & $100\%$ & $65,8\%$ \\
  \hline
- $\lambda_1=2;\lambda_2=0$ & $99,8\%$ & $97.9\%$ \\
+ $\lambda_1=2;\lambda_2=0$ & $99,8\%$ & $97,9\%$ \\
  \hline
 \end{tabular}
 \end{table}
@@ -405,8 +402,9 @@ As for the needed binary masks by RRR method, we define them as follows: 1) put 
 As could be seen on the Figure~\ref{fig:guided-gradcam-dotted-rrr} our model learnt to reject the dot, furthermore it
 learnt to differ zeros and eight by the intuition we suggested in Figure~\ref{fig:08_diff}
 
-\section{Plans|improvements}
-\label{sec:plans|improvements}
+\section{Plans and improvements}
+\label{sec:plans-improvements}
+\itodo{Slight issue in codebase: cam overlay does not work for guided Grad-CAM}
 \itodo{try out learning, when binary masks are really costly to make, in other words, model learns and sometimes queries
 binary mask}
 \itodo{Counterfactual explanations suggested by Grad-CAM paper sounds interesting. I think we might use it, but not sure for what.}
