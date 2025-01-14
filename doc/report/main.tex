@@ -34,13 +34,13 @@ Following \cite{schramowski2020making}, ...
 
 \section{Theory}
 \label{sec:theory}
+\itodo{Edit the report. Remove non-proffesional vocabulary}
 
 \subsection{Supervised classification}
 \label{subsec:sup-class}
-\itodo{describe supervised classificaiton section}
 \subsubsection{Neural Network}
 Model in Machine Learning refers to the mathematical representation of a process, that has been trained on data.
-One of the most important properties of the model is that one way or another (\itodo{non-proffesional vocabulary} it encapsulates the patterns of the data.
+One of the most important properties of the model is that one way or another it encapsulates the patterns of the data.
 Neural network (aka NN) is a specific type of the model in Machine Learning,
 which aims to mimic the work patterns of animal brain neurons.
 Neural network is built from layers, basic structure of NN is: 1 input layer, 1 output layer,
@@ -58,6 +58,7 @@ When the model is learning or is being trained, what actually happens is that we
 \end{itemize}
 
 \vtodo{Introduce also more formally as a parmateric function $y=f_{\theta}(X)$, where $\theta$ are learnable parameters. }
+\itodo{Something like ``Relationship between inputs and predictions abstractly speaking is $\hat{y}=f_{\theta}(X)$, where $\theta$ is a vector of learnable parameters.''}
 
 Supervised Learning is a technique, which utilises \emph{labels} to create a model that can predict correct outputs.
 Other techniques usually don't rely on \emph{labels}.
@@ -70,20 +71,57 @@ of the model.
 
 In order to minimize the loss we use yet another Machine Learning technique called ``Optimizers''.
 The most basic optimizing technique is \emph{Stochastic Gradient Descent} aka SGD\@.
-\itodo{Do I really need to explain SGD here, we do not use it}
-\itodo{Explain ADAM}
-\vtodo{You can introduce general SGD in general (with preconditioning) and ADAM as a special case how to compute the precondition. But this is not too important. }
+During the execution of the SGD the weights are updated as follows (according to~\cite{Li_2018}):
+\begin{equation}
+ \label{eq:sgd}
+ \boldsymbol{\theta}^{[new]} = \boldsymbol{\theta}^{[old]} - \mu \boldsymbol{P} \boldsymbol{\hat{g}}(\boldsymbol{\theta}^{[old]}) \text{,}
+ \end{equation}
+where $\boldsymbol{\theta}$ is learnable parameters, $\mu$ is learning step/rate, $\boldsymbol{\hat{g}}(\boldsymbol{\theta}^{[old]})$ is gradients of learnable parameters and $\boldsymbol{P}$ is a matrix called ``preconditioner''.
+In most of the training sessions $\boldsymbol{P}$ is set to $\boldsymbol{I}$ aka \emph{identity matrix}
+- in such case optimizer is called ``plain'' SGD\@.
 
+In our paper we use \emph{Adaptive Moment Estimation} optimizer commonly known as \emph{ADAM}.
+This technique is actually a special case of preconditioned SGD, and it is defined as follows (according to~\cite{kingma2017adammethodstochasticoptimization}):
+\begin{align}
+ m_t = \beta_1 m_{t - 1} + (1 - \beta_1) g_t \\
+ v_t = \beta_2 v_{t - 1} + (1 - \beta_2) g_t^2 \\
+ \hat{m_t} = \frac{m_t}{1 - \beta_1^t} \\
+ \hat{v_t} = \frac{v_t}{1 - \beta_2^t} \\
+ \theta_t = \theta_{t - 1} - \mu \frac{\hat{m_t}}{(\sqrt {\hat{v_t}} + \epsilon)} \text{,}
+\end{align}
+where $t$ is a discrete timestep, $g_t = \nabla_\theta f_t (\theta_{t - 1})$, $\beta_1$ and $\beta_2$ are hyperparameters.
+Additionally, it is important to note, that $\beta_i^t$ is $\beta_i$ to the power of $t$, $g_t^2$ indicates the elementwise square $g_t * g_t$.
+
+As the \emph{optimizers} need to calculate gradients for every weight in the model
+most of the deep learning frameworks suggest usage of \emph{Automatic Differentiation} (aka AD) tool~\cite{TODO}.
 \itodo{I guees we need to describe learning: forward and back propagation??}
 \vtodo{Not really. Just say, that the gradients are computed using automatic differentiation and use proper references.}
+\itodo{Should I reference to the Pytorch implementation's paper of Automatic Differentiation (https://openreview.net/forum?id=BJJsrmfCZ) or this paper, which describes what it is(https://www.jmlr.org/papers/v18/17-468.html)}
 
 \subsubsection{Cross-entropy loss function}
 \label{subsubsec:cross-entropy-loss}
 Cross-entropy loss function, a specialised loss function for supervised classification task given by:
 \[L = -\frac{1}{N} \sum_{i=1}^{N} \sum_{j=1}^{C} y_{ij} \log(\hat{y}_{ij})
-\text{, where N is number of examples and C is number of classes}\]
+\text{,}\]
+where N is number of examples and C is number of classes.
+
+\emph{Cross-entropy loss} function is derived from \emph{Cross entropy} given by (\ref{eq:cross-entropy}),
+which quantifies the difference between 2 probability distributions.
+It is closely related to data likelihood under \emph{Bernoulli distribution} in such way,
+that \emph{Cross entropy} is derived by taking negative logarithm of (\ref{eq:bernoulli-likelihood}).
+
+\begin{equation}
+ \label{eq:bernoulli-likelihood}
+ P(y | \hat{y}) = \hat{y}^y (1 - \hat{y})^{1-y}
+\end{equation}
+\begin{equation}
+ \label{eq:cross-entropy}
+ H(p, q) = -\sum_{x \in \mathcal{X}} p(x) \log q(x)
+\end{equation}
+
 \itodo{Im not sure if I should somehow describe it more, maybe suggest an intuition to the reader}
 \vtodo{Some details would be nice. E.g. correspondence to Bernoulli likelihoood.}
+\itodo{Review resolving of this TODO}
 
 \subsubsection{Convolutional Neural Network}
 Convolutional Neural Network (aka CNN) is a type of Neural Network, that is well-suited for image recognition.
@@ -195,15 +233,15 @@ We suggest a modification to this loss function, particularly to the ``right rea
 and that is an additional sum through the all convolutional layers of the interest as shown in (\ref{eq:rrr-modified}):
 \begin{align}
  L(\theta, X, y, A) = \sum_{n=1}^{N} \sum_{k=1}^{K} -c_k y_{nk} \log (\hat{y}_{nk}) \\
- + \lambda_1 \sum_{l=1}^{L} \sum_{n=1}^{N} \sum_{d=1}^{D} \left( A_{nd} \frac{\delta}{\delta h_{nd}^{l}} \sum_{k=1}^{K} c_k \log (\hat{y}_{nk}) \right)^2 \label{eq:rrr-modified} \\
+ + \lambda_1 \frac{1}{L}\sum_{l=1}^{L} \sum_{n=1}^{N} \sum_{d=1}^{D} \left( A_{nd} \frac{\delta}{\delta h_{nd}^{l}} \sum_{k=1}^{K} c_k \log (\hat{y}_{nk}) \right)^2 \label{eq:rrr-modified} \\
  + \lambda_2 \sum_{i} \theta_i^2
 \end{align}
 \itodo{maybe add l2 regularization theory subsection}
 
 It is also important to note, that in implementations of RRR loss binary masks are created with the size of the original input,
 rather than the size of feature maps of the convolutional layers of interest.
-And during the computation of loss every binary mask is downscaled to the size of each convolutional layer using bilinear interpolation.
 \itodo{statement is really ambitious, as I've got only 2 sources, my implementation and implementation of \cite{ross2017right}}
+And during the computation of loss every binary mask is downscaled to the size of each convolutional layer using bilinear interpolation.
 
 \section{Experiments}
 \label{sec:experiments}
@@ -223,12 +261,38 @@ So what we want in summary is:
 \subsection{MNIST}
 \label{subsec:08-mnist}
 
-\itodo{Briefly describe the model architecture, optimizer, loss function we used}
-\itodo{add diagram showing our CNN architecture}
-\itodo{I think we need to add reference to the jupyter notebook of the experiment (we need to show somehow our hyperparameters)}
-\vtodo{hyperparameters should be listed for sure. Jupyter notebook is optional.}
+Before we dive in the MNIST experiment we should describe our training parameters,
+which is applied to most trainings mentioned in this subsection (should training be different, changes would be mentioned):
+\begin{itemize}
+ \item \textbf{Model architecture}: our model is a sequence of such layers
+ (which are shown on Figure~\ref{fig:08_cnn_architecture}: \begin{enumerate}
+                                                            \item Convolutional layer with kernel size 3x3, stride=1, padding=1
+                                                            \item ReLU layer
+                                                            \item MaxPool layer with kernel size 2x2, stride=2
+                                                            \item Convolutional layer with kernel size 3x3, stride=1, padding=1
+                                                            \item ReLU layer
+                                                            \item MaxPool layer with kernel size 2x2, stride=2
+                                                            \item Flattening layer from 32x7x7 to 1568
+                                                            \item Fully Connected layer from 1568 to 128
+                                                            \item ReLU layer
+                                                            \item Fully Connected layer from 128 to 2
+                                                            \item Softmax layer
+ \end{enumerate}
+ \item \textbf{Optimizer}: ADAM($\beta_1=0.9; \beta_2=0.999$; learning rate=0.001)
+ \item \textbf{Loss function}: Cross Entropy Loss or RRR Loss.
+ \item \textbf{Other Training details}: batch size=64, number of epochs=2, train data size=11773,
+ test data size=1954
+\end{itemize}
+\itodo{Go through mentions of training and check is something differs from our model description}
 
-Thus, we take a standard \emph{MNIST} (\itodo{Maybe add a theory section about this with a brief description})\vtodo{Just a reference, it is known well enough} dataset
+\begin{figure}
+ \centering
+ \includegraphics[width=\textwidth]{imgs/08_mnist_cnn}
+ \caption{Architecture of the CNN used in MNIST experiment.}
+ \label{fig:08_cnn_architecture}
+\end{figure}
+
+Thus, we take a standard \emph{MNIST} dataset~\cite{deng2012mnist}
 and narrow it down in such way, that it would contain only zeros and eights.
 The reason for such a choice is that an intuitive explanation of the difference between such instances should be around
 middle part of the image, where eights have ``cross'' as demonstrated on the figure~\ref{fig:08_diff}.
@@ -271,9 +335,21 @@ we've somewhat achieved our goal and that is our model differs zeros and eights 
 \itodo{Update CAM overlay in Guided Grad-CAM}
 \itodo{Maybe we should reduce number of examples on the figure to 2}
 
+\subsubsection{Undertrained model's explanations}
+We also wanted to see what explanations the model has, if it was undertrained.
+That's why instead of the whole training dataset we gave the model 200 samples with 3 epochs.
+The accuracy of the model reached $93\%$, after applying Grad-CAM (Subsection~\ref{subsubsec:gradcam})
+we were surprised to see (Figure~\ref{fig:gradcam_on_poor_model}),
+that the model trained to differ eights from zeros by the background, rather than silhouette of the object.
+We presume, that such model will perform worse, should the background filled with noise in real world deployment.
+\begin{figure}
+ \centering
+ \includegraphics[width=0.75\textwidth]{imgs/gradcam_on_poor_adam}
+ \caption{Grad-CAM applied on the undertrained model}
+ \label{fig:gradcam_on_poor_model}
+\end{figure}
+
 \subsubsection{Artificial dataset}
-\itodo{Im thinking of adding photos, which showcases that undertrained model with non-modified 08 dataset also has learned to classify items by the background}
-\vtodo{Make this an extra subsection. Idea with undertraiing is interesting.}
 In previous subsection we showed that our trained model was trained well and its explanations of the classification tasks seem
 to be good too, but what actually happens when we gather such dataset, that may have additional \emph{not necessarily helpful} patterns? \itodo{Maybe we should find some sources to support our argument here?}
 
@@ -290,11 +366,21 @@ a dataset gathered from within \emph{limited environment}.
 We have trained the model on such dataset, applied Guided Grad-CAM and, although the accuracy reaches same values as the
 model trained on unmodified dataset, the explanation of classifying eights mostly comes from the given dot
 (Figure~\ref{fig:guided-gradcam-dotted}).
-Furthermore, when evaluating the model on unmodified dataset, accuracy may fall down to $60\%$ or even $50\%$.
-
-\itodo{Maybe we actually need to add a table of accuracies and calculate average}
-\vtodo{yes, this would help a lot.}
-
+Furthermore, when evaluating the model on unmodified dataset, accuracy may fall down to $60\%$ as described in Table~\ref{tab:avg-accuracy-rrr}.
+\begin{table}
+ \label{tab:avg-accuracy-rrr}
+ \centering
+ \caption{Table showing average accuracy of the model trained with RRR loss function throughout 3 executions.}
+\begin{tabular}{|l|c|c|}
+ \hline
+ Average accuracy with RRR loss & Training dataset & Test dataset \\
+ \hline \hline
+ $\lambda_1=0;\lambda_2=0$ & $100\%$ & $65,8\%$ \\
+ \hline
+ $\lambda_1=2;\lambda_2=0$ & $99,8\%$ & $97.9\%$ \\
+ \hline
+\end{tabular}
+\end{table}
 
 \begin{figure}
  \centering
