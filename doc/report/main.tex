@@ -404,13 +404,19 @@ learnt to differ zeros and eight by the intuition we suggested in Figure~\ref{fi
 
 \section{Plans and improvements}
 \label{sec:plans-improvements}
-\itodo{Slight issue in codebase: cam overlay does not work for guided Grad-CAM}
-\itodo{try out learning, when binary masks are really costly to make, in other words, model learns and sometimes queries
-binary mask}
+This section describes our plans and ideas for different parts of this bachelor work:
+\begin{itemize}
+ \item Codebase: Cam overlay does not work for guided Grad-CAM - we want to fix that
+ \item Scenario: we want to research a scenario, where binary masks are costly to be made.
+ In other words we want try out a scenario, where the number of binary masks is so low, that the model would learn without them, but for the most uncertain samples it would query binary mask.
+ For example, we've got a such problem, which requires an expert of the corresponding files to create binary masks, and its time is expensive.
+ \item Sensitive study: we want to dive deeper in out ``08 MNIST'' experiment and try to answer such question:
+ ``what if there is $n$ samples of 8s that no not have the dot?
+ How many $n$ I need to get to the accuracy (and right reason) comparable to RRR?''
+\end{itemize}
 \itodo{Counterfactual explanations suggested by Grad-CAM paper sounds interesting. I think we might use it, but not sure for what.}
 \itodo{This seems interesting: \cite[At the other extreme, when A is a matrix of all 1s, it encourages the model to have small gradients with respect to its inputs; this can improve generalization on its own Drucker and Le Cun, 1992.]{ross2017right}}
-
-\vtodo{I would be interested in a sensitivity study: i.e. what if there is $n$ samples of 8s that no not have the dot? How many $n$ I need to get to the accuracy (and right reason) comparable to RRR? }
+\itodo{What about EKG dataset experiment? Do we mention it here?}
 
 \section{Conclusion}
 \label{sec:conclusion}
