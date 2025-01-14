@@ -38,9 +38,11 @@ class RRRLoss(nn.Module):
         right_reasons_loss = torch.tensor(0, dtype=torch.float, requires_grad=True).to(self.device)
         if self.l2_right_reasons:
             y_log = torch.log(predictions)
-            for layer_name, activations in self.activations.items():
-                right_reasons_loss += self.calculate_right_reasons_loss_per_layer(activations, binary_masks, log_probs=y_log)
-            right_reasons_loss = self.l2_right_reasons * torch.sum(right_reasons_loss / len(self.activations)) # TODO: maybe remove `/ len(...)` as for now Im suggesting taking mean of right reasons for all layers of interest
+            right_reasons_loss = torch.stack([
+                self.calculate_right_reasons_loss_per_layer(activations, binary_masks, log_probs=y_log)
+                for activations in self.activations.values()
+            ])
+            right_reasons_loss = self.l2_right_reasons * right_reasons_loss.mean(axis=0) # TODO: debug if works correctly
 
         # weight regularization computation
         weight_regularization = torch.tensor(0, dtype=torch.float).to(self.device)
