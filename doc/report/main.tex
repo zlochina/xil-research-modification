@@ -23,14 +23,18 @@
 \section{Introduction}
 \label{sec:introduction}
 
-\itodo{write introduction}
-Why solving the problem:
-- Deep learning models may show "Clever Hans"-like behavior - making use of confounding factors within datasets.
-- As demonstrated in~\cite{schramowski2020making}
+Nowadays deep learning techniques become more advanced and with it comes complexity and non-transparency.
+We have seen relatively new concept, Generative AI, to reach results unimaginable for the time of a decade ago,
+and those are NLP (Natural Language Processing) or creation of art comparable to the human expert level.
+But the core of the models standing behind these inventions is highly non-interpretable - we know they work and correctly in most of the cases,
+but do we really know how they work, why their decisions are what they chose?
+What if we apply these inventions to the critical infrastructure, where wrong decision could cause a catastrophe?
+As of now we do not apply these models for such infrastructure and will not have until we build trust of the
+human to the machine.
 
-
-Following \cite{schramowski2020making}, ...
-
+That is why in this paper we further the research of \emph{Explanatory Interactive Learning} (aka XIL),
+concept of which is fundamentally aimed at building trust, in other words,
+training the model to be ``right for the right reasons''.
 
 \section{Theory}
 \label{sec:theory}
@@ -410,10 +414,11 @@ This section describes our plans and ideas for different parts of this bachelor 
  \item Scenario: we want to research a scenario, where binary masks are costly to be made.
  In other words we want try out a scenario, where the number of binary masks is so low, that the model would learn without them, but for the most uncertain samples it would query binary mask.
  For example, we've got a such problem, which requires an expert of the corresponding files to create binary masks, and its time is expensive.
- \item Sensitive study: we want to dive deeper in out ``08 MNIST'' experiment and try to answer such question:
+ \item Sensitive study: we want to dive deeper in our ``08 MNIST'' experiment and try to answer such question:
  ``what if there is $n$ samples of 8s that no not have the dot?
  How many $n$ I need to get to the accuracy (and right reason) comparable to RRR?''
 \end{itemize}
+\itodo{Trust study. I guess, the main goal of XIL, except for correcting the model to be RRR, is building trust. Im thinking, that at some point we would need to do a survey}
 \itodo{Counterfactual explanations suggested by Grad-CAM paper sounds interesting. I think we might use it, but not sure for what.}
 \itodo{This seems interesting: \cite[At the other extreme, when A is a matrix of all 1s, it encourages the model to have small gradients with respect to its inputs; this can improve generalization on its own Drucker and Le Cun, 1992.]{ross2017right}}
 \itodo{What about EKG dataset experiment? Do we mention it here?}
@@ -421,8 +426,28 @@ This section describes our plans and ideas for different parts of this bachelor 
 \section{Conclusion}
 \label{sec:conclusion}
 
-what works, what not, how to proceed...
+So we have put up the smaller experiment ``08 MNIST'' to see what tools we need to research XIL,
+we have written down expectations of this experiment, and we would say, that we reached them.
+Although there are different scenarios in the experiment, described in (Section~\ref{sec:plans-improvements}),
+which could be researched further.
 
+\emph{Explainers}.
+We have tried out \emph{Grad-CAM} and \emph{Guided Grad-CAM} for our explanations.
+For our specific experiment they worked rather well, but as was described before, choice of the explanation method
+greatly depends on both the model and our goals, so in further experiments we may need to research other explanation
+technique as of right now we do not fully understand the scope of advantages provided by the methodology.
+
+\emph{RRR}.
+\emph{Right for the right reasons} cost function has shown good and expected results in the experiment.
+Though we haven't researched so-called ``art of creating binary masks'', we've chosen pretty straightforward approach when building them:
+we were the ones, who created the ``dots'' on the artificial dataset, and thus it was rather easy to create corresponding binary masks.
+But what if we've chosen to penalize gradients in the static region ``where dots may appear'' how that would influence
+the final performance?
+What we mean by these words is that during the experiment we've come up with different approaches to create binary masks,
+and overall this ``art'' shouldn't be ignored.
+
+\emph{Further research}.
+We have mentioned most of our ideas about which way this research should go on in (Section~\ref{sec:plans-improvements}).
 
 \bibliographystyle{plain}
 \bibliography{bib}
