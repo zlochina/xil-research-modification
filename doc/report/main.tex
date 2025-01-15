@@ -16,6 +16,7 @@
 
 \begin{abstract}
 \itodo{Add abstract}
+\vtodo{Formal fixes: title, author, abstract. Report class: move all section one level higher: change sections to chapters, subsections to sections, etc. }
 \end{abstract}
 
 \tableofcontents
@@ -63,6 +64,7 @@ When the model is learning or is being trained, what actually happens is that we
 
 \vtodo{Introduce also more formally as a parmateric function $y=f_{\theta}(X)$, where $\theta$ are learnable parameters. }
 \itodo{Something like ``Relationship between inputs and predictions abstractly speaking is $\hat{y}=f_{\theta}(X)$, where $\theta$ is a vector of learnable parameters.''}
+\vtodo{yes}
 
 Supervised Learning is a technique, which utilises \emph{labels} to create a model that can predict correct outputs.
 Other techniques usually don't rely on \emph{labels}.
@@ -101,6 +103,7 @@ most of the deep learning frameworks suggest usage of \emph{Automatic Differenti
 \itodo{I guees we need to describe learning: forward and back propagation??}
 \vtodo{Not really. Just say, that the gradients are computed using automatic differentiation and use proper references.}
 \itodo{Should I reference to the Pytorch implementation's paper of Automatic Differentiation (https://openreview.net/forum?id=BJJsrmfCZ) or this paper, which describes what it is(https://www.jmlr.org/papers/v18/17-468.html)}
+\vtodo{yes, these are good.}
 
 \subsubsection{Cross-entropy loss function}
 \label{subsubsec:cross-entropy-loss}
@@ -126,6 +129,7 @@ that \emph{Cross entropy} is derived by taking negative logarithm of (\ref{eq:be
 \itodo{Im not sure if I should somehow describe it more, maybe suggest an intuition to the reader}
 \vtodo{Some details would be nice. E.g. correspondence to Bernoulli likelihoood.}
 \itodo{Review resolving of this TODO}
+\vtodo{The name cross-entropy is a bit misleading. It is just negative loglikelihood of p(y|x), eq 7. You can remove all entropies...}
 
 \subsubsection{Convolutional Neural Network}
 Convolutional Neural Network (aka CNN) is a type of Neural Network, that is well-suited for image recognition.
@@ -183,7 +187,7 @@ where $R_i^{l+1} = \frac{\partial \text{out}}{\partial f_i^{l+1}}$.
 \begin{figure}
  \centering
  \includegraphics[width=0.75\textwidth]{imgs/guided_backpropagation_1}
- \caption{Forward pass of the image}
+ \caption{Forward pass of the image \vtodo{is this taken from somewhere? needs to be cited if yes.}}
  \label{fig:guided_backprop_forward}
 \end{figure}
 
@@ -199,11 +203,12 @@ It is computed as element-wise multiplication of the \emph{Guided Backpropagatio
 and \emph{Grad-CAM}'s attention map (upsampled to the input image resolution using \emph{bilinear interpolation} according to~\cite{Selvaraju_2019}).
 
 \itodo{Maybe we should cut out Guided Backpropagation into its own subsubsection}
+\vtodo{Depends how much needs to be explained for that.}
 
 \subsection{Right for the right reasons}
 \label{subsec:rrr-theory}
 \emph{Right for the right reasons}, the core of our paper, is a loss function for a differentiable model suggested by~\cite{ross2017right} and modified by~\cite{schramowski2020making}.
-\itodo{Not sure about this statement as it is valid for now and could be changed as there is CounterExamples method (and maybe others). I would rather say that the core of our paper is research of XIL.}
+\itodo{Not sure about this statement as it is valid for now and could be changed as there is CounterExamples method (and maybe others). I would rather say that the core of our paper is research of XIL.}\vtodo{Ok, say it the way you like.}
 ``Right for the right reasons'' loss (further referred as \emph{RRR loss}) is defined as follows:
 \begin{samepage}
  \begin{equation}
@@ -240,7 +245,7 @@ and that is an additional sum through the all convolutional layers of the intere
  + \lambda_1 \frac{1}{L}\sum_{l=1}^{L} \sum_{n=1}^{N} \sum_{d=1}^{D} \left( A_{nd} \frac{\delta}{\delta h_{nd}^{l}} \sum_{k=1}^{K} c_k \log (\hat{y}_{nk}) \right)^2 \label{eq:rrr-modified} \\
  + \lambda_2 \sum_{i} \theta_i^2
 \end{align}
-\itodo{maybe add l2 regularization theory subsection}
+\itodo{maybe add l2 regularization theory subsection}\vtodo{It is not really needed, and generally well known, I would not worry much.}
 
 It is also important to note, that in implementations of RRR loss binary masks are created with the size of the original input,
 rather than the size of feature maps of the convolutional layers of interest.
@@ -352,7 +357,7 @@ We presume, that such model will perform worse, should the background filled wit
 
 \subsubsection{Artificial dataset}
 In previous subsection we showed that our trained model was trained well and its explanations of the classification tasks seem
-to be good too, but what actually happens when we gather such dataset, that may have additional \emph{not necessarily helpful} patterns? \itodo{Maybe we should find some sources to support our argument here?}
+to be good too, but what actually happens when we gather such dataset, that may have additional \emph{not necessarily helpful} patterns? \itodo{Maybe we should find some sources to support our argument here?}\vtodo{I think Kersting has more papers on this.}
 
 We decided to add a dot to every sample of eight in our dataset, as shown on Figure~\ref{fig:dotted_ds} to represent
 a dataset gathered from within \emph{limited environment}.
@@ -418,10 +423,10 @@ This section describes our plans and ideas for different parts of this bachelor 
  ``what if there is $n$ samples of 8s that no not have the dot?
  How many $n$ I need to get to the accuracy (and right reason) comparable to RRR?''
 \end{itemize}
-\itodo{Trust study. I guess, the main goal of XIL, except for correcting the model to be RRR, is building trust. Im thinking, that at some point we would need to do a survey}
-\itodo{Counterfactual explanations suggested by Grad-CAM paper sounds interesting. I think we might use it, but not sure for what.}
+\itodo{Trust study. I guess, the main goal of XIL, except for correcting the model to be RRR, is building trust. Im thinking, that at some point we would need to do a survey}\vtodo{Survey of what? Poll between users?}
+\itodo{Counterfactual explanations suggested by Grad-CAM paper sounds interesting. I think we might use it, but not sure for what.}\vtodo{Explanations have many forms, abductive, counterfactuals, leave it for later...}
 \itodo{This seems interesting: \cite[At the other extreme, when A is a matrix of all 1s, it encourages the model to have small gradients with respect to its inputs; this can improve generalization on its own Drucker and Le Cun, 1992.]{ross2017right}}
-\itodo{What about EKG dataset experiment? Do we mention it here?}
+\itodo{What about EKG dataset experiment? Do we mention it here?} \vtodo{Just mention that we plan to apply the method to a different kind of data, such as EKG.}
 
 \section{Conclusion}
 \label{sec:conclusion}
