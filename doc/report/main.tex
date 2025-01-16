@@ -3,26 +3,33 @@
 \usepackage{todonotes}
 \usepackage{amsmath}
 \usepackage{amsfonts}
-\title{BP - RRR}
+\title{Application of Right for the Right Reasons}
 
 \newcommand{\itodo}[1]{\todo[inline]{#1}}
 \newcommand{\vtodo}[1]{\todo[inline,color=purple!50!white]{#1}}
 
 \date{January 2025}
+\author{Vladyslav Zlochevskyi, prof. Ing. Václav Šmídl, Ph.D.}
 
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
-\itodo{Add abstract}
-\vtodo{Formal fixes: title, author, abstract. Report class: move all section one level higher: change sections to chapters, subsections to sections, etc. }
+ Deep learning techniques, while advancing the state of the art in numerous domains, remain opaque,
+ posing significant challenges for critical applications where trust and interpretability are strong requirement.
+ This paper extends the research in Explanatory Interactive Learning (XIL) focusing on ``Right for the Right Reasons''
+ methodology.
+ RRR introduces a novel loss function to align model explanations with human-intuitive reasoning, building trust and reliability.
+ We present experiments utilizing the MNIST dataset, where models are trained under conventional and RRR paradigms.
+ We demonstrate that RRR enhances interpretability by mitigating confounding factors and aligning decision-making with
+ intuitive patterns, as validated by Grad-CAM and Guided Grad-CAM explainers.
 \end{abstract}
 
 \tableofcontents
 
-\section{Introduction}
-\label{sec:introduction}
+\chapter{Introduction}
+\label{ch:introduction}
 
 Nowadays deep learning techniques become more advanced and with it comes complexity and non-transparency.
 We have seen relatively new concept, Generative AI, to reach results unimaginable for the time of a decade ago,
@@ -37,13 +44,14 @@ That is why in this paper we further the research of \emph{Explanatory Interacti
 concept of which is fundamentally aimed at building trust, in other words,
 training the model to be ``right for the right reasons''.
 
-\section{Theory}
-\label{sec:theory}
+\chapter{Theory}
+\label{ch:theory}
 \itodo{Edit the report. Remove non-proffesional vocabulary}
 
-\subsection{Supervised classification}
-\label{subsec:sup-class}
-\subsubsection{Neural Network}
+\section{Supervised classification}
+\label{sec:sup-class}
+\subsection{Neural Network}
+\label{subsec:neural-network}
 Model in Machine Learning refers to the mathematical representation of a process, that has been trained on data.
 One of the most important properties of the model is that one way or another it encapsulates the patterns of the data.
 Neural network (aka NN) is a specific type of the model in Machine Learning,
@@ -61,10 +69,7 @@ When the model is learning or is being trained, what actually happens is that we
  \item Data, that are the result of the output layer, is commonly referred to as ``outputs'', ``predictions''.
  \item Data, that are the expected results of processed inputs, is commonly referred to as ``targets'', ``labels'', ``ys''.
 \end{itemize}
-
-\vtodo{Introduce also more formally as a parmateric function $y=f_{\theta}(X)$, where $\theta$ are learnable parameters. }
-\itodo{Something like ``Relationship between inputs and predictions abstractly speaking is $\hat{y}=f_{\theta}(X)$, where $\theta$ is a vector of learnable parameters.''}
-\vtodo{yes}
+Relationship between inputs and predictions abstractly speaking is $\hat{y}=f_{\theta}(X)$, where $\theta$ is a vector of learnable parameters.
 
 Supervised Learning is a technique, which utilises \emph{labels} to create a model that can predict correct outputs.
 Other techniques usually don't rely on \emph{labels}.
@@ -99,39 +104,25 @@ where $t$ is a discrete timestep, $g_t = \nabla_\theta f_t (\theta_{t - 1})$, $\
 Additionally, it is important to note, that $\beta_i^t$ is $\beta_i$ to the power of $t$, $g_t^2$ indicates the elementwise square $g_t * g_t$.
 
 As the \emph{optimizers} need to calculate gradients for every weight in the model
-most of the deep learning frameworks suggest usage of \emph{Automatic Differentiation} (aka AD) tool~\cite{TODO}.
-\itodo{I guees we need to describe learning: forward and back propagation??}
-\vtodo{Not really. Just say, that the gradients are computed using automatic differentiation and use proper references.}
-\itodo{Should I reference to the Pytorch implementation's paper of Automatic Differentiation (https://openreview.net/forum?id=BJJsrmfCZ) or this paper, which describes what it is(https://www.jmlr.org/papers/v18/17-468.html)}
-\vtodo{yes, these are good.}
+most of the deep learning frameworks suggest usage of \emph{Automatic Differentiation} (aka AD) tool described in~\cite{JMLR:v18:17-468}
+and implemented by \emph{PyTorch} framework in~\cite{paszke2017automatic}.
 
-\subsubsection{Cross-entropy loss function}
-\label{subsubsec:cross-entropy-loss}
+\subsection{Cross-entropy loss function}
+\label{subsec:cross-entropy-loss}
 Cross-entropy loss function, a specialised loss function for supervised classification task given by:
 \[L = -\frac{1}{N} \sum_{i=1}^{N} \sum_{j=1}^{C} y_{ij} \log(\hat{y}_{ij})
 \text{,}\]
 where N is number of examples and C is number of classes.
 
-\emph{Cross-entropy loss} function is derived from \emph{Cross entropy} given by (\ref{eq:cross-entropy}),
-which quantifies the difference between 2 probability distributions.
-It is closely related to data likelihood under \emph{Bernoulli distribution} in such way,
-that \emph{Cross entropy} is derived by taking negative logarithm of (\ref{eq:bernoulli-likelihood}).
+\emph{Cross-entropy loss} function is derived by taking negative loglikelihood of \emph{Bernoulli distribution}(\ref{eq:bernoulli-likelihood}).
 
 \begin{equation}
  \label{eq:bernoulli-likelihood}
  P(y | \hat{y}) = \hat{y}^y (1 - \hat{y})^{1-y}
 \end{equation}
-\begin{equation}
- \label{eq:cross-entropy}
- H(p, q) = -\sum_{x \in \mathcal{X}} p(x) \log q(x)
-\end{equation}
 
-\itodo{Im not sure if I should somehow describe it more, maybe suggest an intuition to the reader}
-\vtodo{Some details would be nice. E.g. correspondence to Bernoulli likelihoood.}
-\itodo{Review resolving of this TODO}
-\vtodo{The name cross-entropy is a bit misleading. It is just negative loglikelihood of p(y|x), eq 7. You can remove all entropies...}
-
-\subsubsection{Convolutional Neural Network}
+\subsection{Convolutional Neural Network}
+\label{subsec:convolutional-neural-network}
 Convolutional Neural Network (aka CNN) is a type of Neural Network, that is well-suited for image recognition.
 It is usually made up of such multiple layers as:
 \begin{itemize}
@@ -145,11 +136,11 @@ It is usually made up of such multiple layers as:
  \item \textbf{Fully connected layers (aka Dense layers)}: this layer connect every neuron to every neuron of the next layer.
 \end{itemize}
 
-\subsection{Explanations}
-\label{subsec:explanations}
+\section{Explanations}
+\label{sec:explanations}
 
-\subsubsection{Grad-CAM}
-\label{subsubsec:gradcam}
+\subsection{Grad-CAM}
+\label{subsec:gradcam}
 \emph{Gradient-weighted Class Activation Mapping (Grad-CAM)} is an explanation technique proposed by
 \cite[Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization]{Selvaraju_2019} paper.
 It produces `visual explanation' for decisions of the vast majority of CNN-based models.
@@ -165,12 +156,11 @@ for any class $c$ is computed as follows:
     \[L_{Grad-CAM}^c = ReLU(\underbrace{\sum_k \alpha_k^c A^k}_{\text{linear combination}}) \quad \text{,}\]
 \end{samepage}
 where $y^c$ stands for the score for class $c$, $A^k$ is the $k$-th feature map activations of the convolutional layer, $Z = u * v$.
-\itodo{Not really sure if we should the following example: So for example we've got a convolutional layer, which outputs 32 channels of 14 by 14 feature maps, k should be in range [1,32]. Because it was not obvious to me, that feature map activations was referring to every channel individually instead of the tensor of all channels.}
 
-\subsubsection{Guided Grad-CAM}
-\label{subsubsec:guided-gradcam}
+\subsection{Guided Grad-CAM}
+\label{subsec:guided-gradcam}
 
-\emph{Guided Grad-CAM}~\cite{Selvaraju_2019} is an advanced version of \emph{Grad-CAM} (Subsection~\ref{subsubsec:gradcam}),
+\emph{Guided Grad-CAM}~\cite{Selvaraju_2019} is an advanced version of \emph{Grad-CAM} (Subsection~\ref{subsec:gradcam}),
 which focuses on highlighting fine-grained details against \emph{Grad-CAM}'s showing ``relevant'' regions.
 
 Before we dive in how \emph{Guided Grad-CAM} is computed, we should talk about one of the constructs of this method and that is \emph{Guided Backpropagation},
@@ -187,14 +177,14 @@ where $R_i^{l+1} = \frac{\partial \text{out}}{\partial f_i^{l+1}}$.
 \begin{figure}
  \centering
  \includegraphics[width=0.75\textwidth]{imgs/guided_backpropagation_1}
- \caption{Forward pass of the image \vtodo{is this taken from somewhere? needs to be cited if yes.}}
+ \caption{Forward pass of the image~\cite{springenberg2014striving}}
  \label{fig:guided_backprop_forward}
 \end{figure}
 
 \begin{figure}
  \centering
  \includegraphics[width=0.75\textwidth]{imgs/guided_backpropagation_2}
- \caption{Backward pass of the output to ``reconstruct'' the image}
+ \caption{Backward pass of the output to ``reconstruct'' the image~\cite{springenberg2014striving}}
  \label{fig:guided_backprop_backward}
 \end{figure}
 
@@ -202,13 +192,9 @@ where $R_i^{l+1} = \frac{\partial \text{out}}{\partial f_i^{l+1}}$.
 It is computed as element-wise multiplication of the \emph{Guided Backpropagation}'s ``reconstructed image''
 and \emph{Grad-CAM}'s attention map (upsampled to the input image resolution using \emph{bilinear interpolation} according to~\cite{Selvaraju_2019}).
 
-\itodo{Maybe we should cut out Guided Backpropagation into its own subsubsection}
-\vtodo{Depends how much needs to be explained for that.}
-
-\subsection{Right for the right reasons}
-\label{subsec:rrr-theory}
-\emph{Right for the right reasons}, the core of our paper, is a loss function for a differentiable model suggested by~\cite{ross2017right} and modified by~\cite{schramowski2020making}.
-\itodo{Not sure about this statement as it is valid for now and could be changed as there is CounterExamples method (and maybe others). I would rather say that the core of our paper is research of XIL.}\vtodo{Ok, say it the way you like.}
+\section{Right for the right reasons}
+\label{sec:rrr-theory}
+\emph{Right for the right reasons}, is a loss function for a differentiable model suggested by~\cite{ross2017right} and modified by~\cite{schramowski2020making}.
 ``Right for the right reasons'' loss (further referred as \emph{RRR loss}) is defined as follows:
 \begin{samepage}
  \begin{equation}
@@ -230,7 +216,7 @@ where $\theta$ is a vector of weights, $X$ is the inputs, $y$ is labels, $A$ is 
 $\hat{y}$ is the predictions and $h$ is feature map of the convolutional layer, usually the last.
 $N$ stands for the number of examples, $K$ is for the number of classes our model outputs, $D$ is the number of features in feature map.
 RRR loss's right answers in equation's part (\ref{eq:rrr-right-answers}) is the
-\emph{Cross-entropy loss} function (Subsection~\ref{subsubsec:cross-entropy-loss}) modified with class weights.
+\emph{Cross-entropy loss} function (Subsection~\ref{subsec:cross-entropy-loss}) modified with class weights.
 RRR loss's weight regularization in equation's part (\ref{eq:rrr-l2-reg}) is common L2 regularization preventing overfitting of the model.
 The novel part is in equation's part (\ref{eq:rrr-right-reasons}), which tries to penalize the gradients of
 the convolutional layer from being too large in the regions marked by binary masks.
@@ -245,15 +231,13 @@ and that is an additional sum through the all convolutional layers of the intere
  + \lambda_1 \frac{1}{L}\sum_{l=1}^{L} \sum_{n=1}^{N} \sum_{d=1}^{D} \left( A_{nd} \frac{\delta}{\delta h_{nd}^{l}} \sum_{k=1}^{K} c_k \log (\hat{y}_{nk}) \right)^2 \label{eq:rrr-modified} \\
  + \lambda_2 \sum_{i} \theta_i^2
 \end{align}
-\itodo{maybe add l2 regularization theory subsection}\vtodo{It is not really needed, and generally well known, I would not worry much.}
 
 It is also important to note, that in implementations of RRR loss binary masks are created with the size of the original input,
 rather than the size of feature maps of the convolutional layers of interest.
-\itodo{statement is really ambitious, as I've got only 2 sources, my implementation and implementation of \cite{ross2017right}}
 And during the computation of loss every binary mask is downscaled to the size of each convolutional layer using bilinear interpolation.
 
-\section{Experiments}
-\label{sec:experiments}
+\chapter{Experiments}
+\label{ch:experiments}
 Before approaching a bigger experiment, we've decided to come up with a simple one, which would show some core
 aspects of the introduced methodology and also show us what tools and methods we need to focus our attention to.
 
@@ -263,12 +247,12 @@ So what we want in summary is:
 \item Train a model with so-called \emph{common approach};
 \item Try out some of the explainers and choose the one, which would offer explanations satisfying our needs;
 \item Find a scenario, where model trained with common approach doesn't perform well;
-\item Retrain the model using novel approach aka RRRLoss (Subsection~\ref{subsec:rrr-theory});
+\item Retrain the model using novel approach aka RRRLoss (Subsection~\ref{sec:rrr-theory});
 \item Show that newly trained model rejects confounding factors as part of the classification's explanation.
 \end{enumerate}
 
-\subsection{MNIST}
-\label{subsec:08-mnist}
+\section{MNIST}
+\label{sec:08-mnist}
 
 Before we dive in the MNIST experiment we should describe our training parameters,
 which is applied to most trainings mentioned in this subsection (should training be different, changes would be mentioned):
@@ -313,11 +297,12 @@ And this is exactly what we expect the explainer to annotate for us as the \emph
  \label{fig:08_diff}
 \end{figure}
 
-\subsubsection{Comparison of explainers}
+\subsection{Comparison of explainers}
+\label{subsec:comparison-of-explainers}
 
 In this section we're describing our choice of explainer.
 The core requirement was to choose the so-called `model-agnostic` explainer,
-so we started from Grad-CAM series of explainers and chose basic Grad-CAM (Section~\ref{subsubsec:gradcam}).
+so we started from Grad-CAM series of explainers and chose basic Grad-CAM (Section~\ref{subsec:gradcam}).
 
 The model performs well, and we can clearly see that attention map generated by Grad-CAM (Figure~\ref{fig:gradcam_exp})
 has good explanation of what regions of the instances made contributions to prediction, but we cannot exactly tell by
@@ -330,7 +315,7 @@ such attention maps what is the difference between given instances, so it is not
  \label{fig:gradcam_exp}
 \end{figure}
 
-That's why we've decided to use Guided Grad-CAM (Section~\ref{subsubsec:guided-gradcam}), which provides more detailed
+That's why we've decided to use Guided Grad-CAM (Section~\ref{subsec:guided-gradcam}), which provides more detailed
 explanation, than Grad-CAM. As could be seen on Figure~\ref{fig:guided_gradcam_exp}
 we've somewhat achieved our goal and that is our model differs zeros and eights by the intuition we proposed earlier on Figure~\ref{fig:08_diff}.
 
@@ -341,10 +326,11 @@ we've somewhat achieved our goal and that is our model differs zeros and eights 
  \label{fig:guided_gradcam_exp}
 \end{figure}
 
-\subsubsection{Undertrained model's explanations}
+\subsection{Undertrained model's explanations}
+\label{subsec:undertrained-model's-explanations}
 We also wanted to see what explanations the model has, if it was undertrained.
 That's why instead of the whole training dataset we gave the model 200 samples with 3 epochs.
-The accuracy of the model reached $93\%$, after applying Grad-CAM (Subsection~\ref{subsubsec:gradcam})
+The accuracy of the model reached $93\%$, after applying Grad-CAM (Subsection~\ref{subsec:gradcam})
 we were surprised to see (Figure~\ref{fig:gradcam_on_poor_model}),
 that the model trained to differ eights from zeros by the background, rather than silhouette of the object.
 We presume, that such model will perform worse, should the background filled with noise in real world deployment.
@@ -355,9 +341,13 @@ We presume, that such model will perform worse, should the background filled wit
  \label{fig:gradcam_on_poor_model}
 \end{figure}
 
-\subsubsection{Artificial dataset}
+\subsection{Artificial dataset}
+\label{subsec:artificial-dataset}
 In previous subsection we showed that our trained model was trained well and its explanations of the classification tasks seem
-to be good too, but what actually happens when we gather such dataset, that may have additional \emph{not necessarily helpful} patterns? \itodo{Maybe we should find some sources to support our argument here?}\vtodo{I think Kersting has more papers on this.}
+to be good too, but what actually happens when we gather such dataset, that may have additional
+\emph{not necessarily helpful} pattern, which is greatly described in
+\cite[Overfitting occurs when the machine-learning model captures the regularities of data it has been trained on arbitrarily closely,
+ but its predictions’ accuracy does not transfer well to unseen test data, that is, it fits the noise]{thomas2024modelling}?
 
 We decided to add a dot to every sample of eight in our dataset, as shown on Figure~\ref{fig:dotted_ds} to represent
 a dataset gathered from within \emph{limited environment}.
@@ -395,9 +385,10 @@ Furthermore, when evaluating the model on unmodified dataset, accuracy may fall 
  \label{fig:guided-gradcam-dotted}
 \end{figure}
 
-\subsubsection{RRR}
+\subsection{RRR}
+\label{subsec:rrr}
 At this point of our experiment we retrain our model with the \emph{same} hyperparameters, \emph{same} model architecture
-and \emph{same} optimizer, but we use ``right for the right reasons'' loss function (Section~\ref{subsec:rrr-theory})
+and \emph{same} optimizer, but we use ``right for the right reasons'' loss function (Section~\ref{sec:rrr-theory})
 instead of previously used Cross-entropy loss.
 As for the needed binary masks by RRR method, we define them as follows: 1) put 1s in the region of the dot; 2) 0 otherwise.
 
@@ -411,29 +402,30 @@ As for the needed binary masks by RRR method, we define them as follows: 1) put 
 As could be seen on the Figure~\ref{fig:guided-gradcam-dotted-rrr} our model learnt to reject the dot, furthermore it
 learnt to differ zeros and eight by the intuition we suggested in Figure~\ref{fig:08_diff}
 
-\section{Plans and improvements}
-\label{sec:plans-improvements}
-This section describes our plans and ideas for different parts of this bachelor work:
+\chapter{Plans and improvements}
+\label{ch:plans-improvements}
+This chapter describes our plans and ideas for different parts of this bachelor work:
 \begin{itemize}
  \item Codebase: Cam overlay does not work for guided Grad-CAM - we want to fix that
+ \item Data scope: we also want to apply described techniques to the different data, such as EKG data of patients.
  \item Scenario: we want to research a scenario, where binary masks are costly to be made.
  In other words we want try out a scenario, where the number of binary masks is so low, that the model would learn without them, but for the most uncertain samples it would query binary mask.
- For example, we've got a such problem, which requires an expert of the corresponding files to create binary masks, and its time is expensive.
+ For example, we've got a such problem, which requires an expert of the corresponding field to create binary masks, and its time is expensive.
  \item Sensitive study: we want to dive deeper in our ``08 MNIST'' experiment and try to answer such question:
  ``what if there is $n$ samples of 8s that no not have the dot?
  How many $n$ I need to get to the accuracy (and right reason) comparable to RRR?''
+ \item Art of binary masks: there could be different approaches when creating binary masks for RRR or other methods.
+ For example,~\cite[At the other extreme, when A is a matrix of all 1s, it encourages the model to have small gradients
+ with respect to its inputs; this can improve generalization on its own Drucker and Le Cun, 1992.]{ross2017right},
 \end{itemize}
-\itodo{Trust study. I guess, the main goal of XIL, except for correcting the model to be RRR, is building trust. Im thinking, that at some point we would need to do a survey}\vtodo{Survey of what? Poll between users?}
-\itodo{Counterfactual explanations suggested by Grad-CAM paper sounds interesting. I think we might use it, but not sure for what.}\vtodo{Explanations have many forms, abductive, counterfactuals, leave it for later...}
-\itodo{This seems interesting: \cite[At the other extreme, when A is a matrix of all 1s, it encourages the model to have small gradients with respect to its inputs; this can improve generalization on its own Drucker and Le Cun, 1992.]{ross2017right}}
-\itodo{What about EKG dataset experiment? Do we mention it here?} \vtodo{Just mention that we plan to apply the method to a different kind of data, such as EKG.}
+\itodo{Trust study. I guess, the main goal of XIL, except for correcting the model to be RRR, is building trust. Im thinking, that at some point we would need to do a survey}\vtodo{Survey of what? Poll between users?}\itodo{I guess yeah, I think that if we'll get some more time after the main experiments, it would be nice to have a survey, which would compare user's trust to the model trained commonly and the model trained with XIL. Well if it is needed...}
 
-\section{Conclusion}
-\label{sec:conclusion}
+\chapter{Conclusion}
+\label{ch:conclusion}
 
 So we have put up the smaller experiment ``08 MNIST'' to see what tools we need to research XIL,
 we have written down expectations of this experiment, and we would say, that we reached them.
-Although there are different scenarios in the experiment, described in (Section~\ref{sec:plans-improvements}),
+Although there are different scenarios in the experiment, described in (chapter~\ref{ch:plans-improvements}),
 which could be researched further.
 
 \emph{Explainers}.
@@ -452,7 +444,7 @@ What we mean by these words is that during the experiment we've come up with dif
 and overall this ``art'' shouldn't be ignored.
 
 \emph{Further research}.
-We have mentioned most of our ideas about which way this research should go on in (Section~\ref{sec:plans-improvements}).
+We have mentioned most of our ideas about which way this research should go on in (chapter~\ref{ch:plans-improvements}).
 
 \bibliographystyle{plain}
 \bibliography{bib}
