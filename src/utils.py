@@ -190,6 +190,32 @@ class XILUtils:
         return dict(images=images, cam_images=cam_images, grayscale_maps=grayscale_maps, predictions=predictions,
                     certainties=certainties, is_correct=is_correct)
 
+    @staticmethod
+    def plot_three_columns(plt, columns, n_examples, titles, cmap='viridis'):
+        fig, axes = plt.subplots(n_examples, 3, figsize=(18, 6 * n_examples))
+        if n_examples == 1:
+            axes = axes.reshape(1, -1)
+
+        column_1, column_2, column_3 = columns
+
+        for idx in range(n_examples):
+            # First subplot: CAM Overlay
+            axes[idx, 0].imshow(column_1[idx], cmap=cmap)
+            axes[idx, 0].set_title(titles[0][idx])
+            axes[idx, 0].axis('off')
+
+            # Second subplot: Original Image
+            axes[idx, 1].imshow(column_2[idx], cmap=cmap)
+            axes[idx, 1].set_title(titles[1][idx])
+            axes[idx, 1].axis('off')
+
+            # Third subplot: Attention Map
+            axes[idx, 2].imshow(column_3[idx])
+            axes[idx, 2].set_title(titles[2][idx])
+            axes[idx, 2].axis('off')
+
+        plt.tight_layout()
+        plt.show()
 
     @staticmethod
     def plot_grad_cam(gradcam_aggregated_dict, labels, n_examples, plt):
@@ -200,31 +226,18 @@ class XILUtils:
         images = gradcam_aggregated_dict["images"]
         grayscale_maps = gradcam_aggregated_dict["grayscale_maps"]
         # Plot all examples
-        fig, axes = plt.subplots(n_examples, 3, figsize=(18, 6 * n_examples))
-        if n_examples == 1:
-            axes = axes.reshape(1, -1)
-
-        for idx in range(n_examples):
+        titles_1 = []
+        titles_2 = []
+        titles_3 = []
+        columns = [cam_images, images, grayscale_maps]
+        for i in range(n_examples):
             # Create title with prediction and certainty
-            pred_title = f'Predicted: {labels[predictions[idx]]} ({certainties[idx]:.1f}%). Prediction is {"" if is_correct[idx] else "NOT "}correct'
+            pred_title = f'Predicted: {labels[predictions[i]]} ({certainties[i]:.1f}%). Prediction is {"" if is_correct[i] else "NOT "}correct'
 
-            # First subplot: CAM Overlay
-            axes[idx, 0].imshow(cam_images[idx], cmap='viridis')
-            axes[idx, 0].set_title(f'CAM Overlay\n{pred_title}')
-            axes[idx, 0].axis('off')
-
-            # Second subplot: Original Image
-            axes[idx, 1].imshow(images[idx], cmap='viridis')
-            axes[idx, 1].set_title(f'Original\n{pred_title}')
-            axes[idx, 1].axis('off')
-
-            # Third subplot: Attention Map
-            axes[idx, 2].imshow(grayscale_maps[idx])
-            axes[idx, 2].set_title(f'Attention Map\n{pred_title}')
-            axes[idx, 2].axis('off')
-
-        plt.tight_layout()
-        plt.show()
+            titles_1.append(f'CAM Overlay\n{pred_title}')
+            titles_2.append(f'Original\n{pred_title}')
+            titles_3.append(f'Attention Map\n{pred_title}')
+        XILUtils.plot_three_columns(plt, columns, n_examples, (titles_1, titles_2, titles_3))
 
 
     @staticmethod
@@ -254,3 +267,72 @@ class XILUtils:
                 next(dataloader_iterator)
 
         return batch
+
+    @staticmethod
+    def minmax_normalize_tensor(tensor: torch.Tensor) -> torch.Tensor:
+        """
+        Normalize a tensor using min-max normalization per batch element.
+
+        Args:
+            tensor (torch.Tensor): The input tensor of shape (B, ...).
+
+        Returns:
+            torch.Tensor: The normalized tensor with each batch element scaled individually.
+        """
+        # Compute min and max over dimensions 1,2,...,n (all except the batch dimension)
+        dims = tuple(range(1, tensor.ndim))
+        min_val = tensor.amin(dim=dims, keepdim=True)
+        max_val = tensor.amax(dim=dims, keepdim=True)
+
+        # Compute the denominator and avoid division by zero
+        denom = max_val - min_val
+        # Replace zeros in denom with ones to avoid division by zero
+        denom[denom == 0] = 1.0
+
+        return (tensor - min_val) / denom
+
+    @staticmethod
+    def subtract_mean_per_batch(tensor: torch.Tensor) -> torch.Tensor:
+        """
+        Subtract the mean from each batch element individually.
+
+        Args:
+            tensor (torch.Tensor): The input tensor of shape (B, ...).
+
+        Returns:
+            torch.Tensor: The tensor with the mean subtracted per batch element.
+        """
+        # Compute mean over dimensions 1,2,...,n (all dimensions except the batch dimension)
+        dims = tuple(range(1, tensor.ndim))
+        mean_val = tensor.mean(dim=dims, keepdim=True)
+
+        # Subtract the mean for each batch element
+        return tensor - mean_val
+
+    @staticmethod
+    def subtract_batch_mean_diff(tensor: torch.Tensor) -> torch.Tensor:
+        """
+        For a tensor of shape (B, ...), compute the mean for each batch element.
+        Then, take the minimum mean from these batch means, compute the difference
+        between each batch mean and this minimum, and subtract that difference from
+        the corresponding batch element in the original tensor.
+
+        Args:
+            tensor (torch.Tensor): The input tensor of shape (B, ...).
+
+        Returns:
+            torch.Tensor: The resulting tensor after subtracting the per-batch differences.
+        """
+        # Compute the mean for each batch element over all other dimensions
+        dims = tuple(range(1, tensor.ndim))
+        means = tensor.mean(dim=dims, keepdim=True)  # shape: (B, 1, 1, ..., 1)
+
+        # Flatten the batch means to compute the overall minimum mean
+        batch_means = means.view(tensor.shape[0])
+        min_mean = batch_means.min()
+
+        # Compute the difference for each batch element: mean - min_mean
+        diff = means - min_mean  # shape is (B, 1, 1, ..., 1)
+
+        # Subtract the computed difference from the original tensor (broadcasting over the remaining dimensions)
+        return tensor - diff
