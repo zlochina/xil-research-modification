@@ -106,7 +106,6 @@ class XILUtils:
                 loss, current = loss.item(), batch * model_config.batch_size + len(X)
                 print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
 
-    # TODO: review how it is used in `pytorch.ipynb` and why I was forced to rewrite it in `08_MNIST.ipynb`
     @staticmethod
     def test_loop(dataloader, model, loss_fn, device):
         model.eval()
@@ -131,6 +130,7 @@ class XILUtils:
 
     @staticmethod
     def apply_gradcam(model, target_layers, n_examples, dataset, num_classes, device, shuffle_ds=False, batch_num=0, batch_size=5, guided_backprop=False):
+        model.eval()
         # Get batch
         batch = XILUtils._get_batch_from_dataset(dataset, batch_num, batch_size, shuffle_ds)
 
@@ -157,7 +157,7 @@ class XILUtils:
 
             # Get prediction
             prediction_probs = model(example.unsqueeze(0).to(device))
-            prediction = torch.zeros(num_classes)
+            prediction = torch.zeros(num_classes, device=device)
             prediction[prediction_probs.argmax()] = 1
             certainty = prediction_probs.max().item() * 100
 
@@ -171,7 +171,7 @@ class XILUtils:
             print(f"Predicted target: {prediction} with {certainty:.3f}% certainty. Correct? {all(prediction == target)}")
 
             # Prepare image
-            img: numpy.ndarray = example.reshape((28, 28, 1)).repeat(1, 1, 3).numpy()
+            img: numpy.ndarray = example.reshape((28, 28, 1)).cpu().repeat(1, 1, 3).numpy()
             images.append(img)
 
             # Generate GradCAM
@@ -182,7 +182,7 @@ class XILUtils:
                 if guided_backprop:
                     grayscale_cam *= numpy.squeeze(gb_model(input_tensor, target_category=None), axis=-1)
 
-                grayscale_maps.append(grayscale_cam)
+                grayscale_maps.append(XILUtils.minmax_normalize_tensor(torch.tensor(grayscale_cam).unsqueeze(0)).squeeze().numpy())
 
             cam_image = show_cam_on_image(img, grayscale_cam, use_rgb=False)
             cam_images.append(cam_image)
