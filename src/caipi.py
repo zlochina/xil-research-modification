@@ -173,6 +173,35 @@ class SubstitutionStrategy(Strategy):
         # Step 3: Replace elements marked by binary mask explanation with randomly chosen inputs
         return torch.where(explanation, random_inputs, out)
 
+class MarginalizedSubstitutionStrategy(Strategy):
+    # TODO: An idea, which will not be implemented for 08 MNIST experiment,
+    # but could be used for other experiments is:
+    # expecting to receive an additional argument, which will specify, to which targets, we should
+    # expand. For now implementation would be marginalisation over all targets.
+
+    def __init__(self, inputs: torch.Tensor, targets: torch.Tensor):
+        self._inputs = inputs
+        self._targets = targets
+        pass
+
+    def __call__(self, x_tensor: torch.Tensor, explanation: torch.Tensor, ce_num: int, *args, **kwargs):
+        # Step 1: Match target to self._targets. REDUNDANT
+        matched_inputs = self._inputs
+
+        # Broadcast to create ce_num copies
+        out = x_tensor.unsqueeze(1).repeat_interleave(ce_num, dim=1)
+        explanation = explanation.unsqueeze(1).repeat_interleave(ce_num, dim=1)
+        
+        # Step 2: Randomly choose input for each counter example
+        # Generate random indices for selecting inputs
+        random_indices = torch.randint(0, matched_inputs.shape[0], (out.shape[0], ce_num),
+                                        device=out.device, dtype=torch.long)
+        # Select randomly chosen inputs
+        random_inputs = matched_inputs[random_indices, torch.arange(out.shape[1]).unsqueeze(0)]
+
+        # Step 3: Replace elements marked by binary mask explanation with randomly chosen inputs
+        return torch.where(explanation, random_inputs, out)
+
 # To Counter Examples
 # Notes:
 #   1. `explanation` shape is dependent on `x_tensor` shape
