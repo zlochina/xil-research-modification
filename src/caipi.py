@@ -13,6 +13,9 @@ class Strategy(ABC):
     def __call__(self, x_tensor: torch.Tensor, explanation: torch.Tensor, ce_num: int, *args, **kwargs):
         raise NotImplementedError("Called to abstract class Strategy")
 
+    def __str__(self):
+        return self.__class__.__name__
+
 class RandomStrategy(Strategy):
     # for now only Uniform distribution is used
     def __init__(self, low_limit, high_limit, dtype: torch.dtype):
