@@ -2,9 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from pytorch_grad_cam import GradCAM, GuidedBackpropReLUModel
+from pytorch_grad_cam import GradCAM, GuidedBackpropReLUModel as nativeGuidedBackpropReLUModel
 from pytorch_grad_cam.utils.image import show_cam_on_image
 import numpy
+import src.guided_backprop as guided_backprop
 
 # TODO: remove this class or replace variables with such as `model`, `optimizer`, `loss_fn` etc.
 class ModelConfig:
@@ -148,7 +149,7 @@ class XILUtils:
 
         gb_model = None
         if guided_backprop:
-            gb_model = GuidedBackpropReLUModel(model=model, device=device)
+            gb_model = nativeGuidedBackpropReLUModel(model=model, device=device)
 
         model.eval()
         for index in range(n_examples):
@@ -336,3 +337,42 @@ class XILUtils:
 
         # Subtract the computed difference from the original tensor (broadcasting over the remaining dimensions)
         return tensor - diff
+
+    @staticmethod
+    def guided_gradcam_explain(x_batch, model, device, target_layers):
+        # TODO: replace with more deterministic version of guided backpropagation
+        gb_model = guided_backprop.GuidedBackpropReLUModel(model=model, device=device)
+
+        model.eval()
+
+        # Generate GradCAM
+        with GradCAM(model=model, target_layers=target_layers) as cam:
+            grayscale_cam = torch.tensor(cam(input_tensor=x_batch, targets=None, aug_smooth=False, eigen_smooth=False), device=device)
+            gb_model_out = gb_model(x_batch, target_category=None)[:, 0, :, :]
+            grayscale_cam *= gb_model_out
+
+        return grayscale_cam
+
+    @staticmethod
+    def create_explanation(input_tensor: torch.Tensor, binary_mask_tensor: torch.Tensor, explanation_type: str="guided_gradcam", **kwargs):
+        # get explanation specific parameters
+
+        if explanation_type == "guided_gradcam":
+            # Guided GradCAM
+            target_layers = kwargs.get("target_layers")
+            device = kwargs.get("device")
+            model = kwargs.get("model")
+
+            if target_layers is None:
+                raise ValueError("Target layers must be provided for Guided GradCAM.")
+            if device is None:
+                raise ValueError("Device must be provided for Guided GradCAM.")
+            if model is None:
+                raise ValueError("Model must be provided for Guided GradCAM.")
+
+            guided_gradcam_explanation = XILUtils.guided_gradcam_explain(input_tensor, model, device, target_layers).unsqueeze(1)
+            guided_gradcam_explanation = XILUtils.minmax_normalize_tensor(guided_gradcam_explanation)
+            result = guided_gradcam_explanation * binary_mask_tensor
+        else:
+            raise NotImplementedError(f"Explanation type '{explanation_type}' is not implemented.")
+        return result
