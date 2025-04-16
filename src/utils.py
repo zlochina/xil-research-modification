@@ -339,22 +339,22 @@ class XILUtils:
         return tensor - diff
 
     @staticmethod
-    def guided_gradcam_explain(x_batch, model, device, target_layers):
-        # TODO: replace with more deterministic version of guided backpropagation
-        gb_model = guided_backprop.GuidedBackpropReLUModel(model=model, device=device)
+    def guided_gradcam_explain(x_batch, target_batch, model, device, target_layers):
+        gb_model = guided_backprop.GuidedBackpropagation(model=model, device=device)
 
         model.eval()
 
         # Generate GradCAM
         with GradCAM(model=model, target_layers=target_layers) as cam:
             grayscale_cam = torch.tensor(cam(input_tensor=x_batch, targets=None, aug_smooth=False, eigen_smooth=False), device=device)
-            gb_model_out = gb_model(x_batch, target_category=None)[:, 0, :, :]
+            gb_model_out = XILUtils.minmax_normalize_tensor(gb_model(x_batch, target_batch))[:, 0]
+            # !!! Normalizing output of guided backpropagation is having a positive effect on visualising
             grayscale_cam *= gb_model_out
 
         return grayscale_cam
 
     @staticmethod
-    def create_explanation(input_tensor: torch.Tensor, binary_mask_tensor: torch.Tensor, explanation_type: str="guided_gradcam", **kwargs):
+    def create_explanation(input_tensor: torch.Tensor, binary_mask_tensor: torch.Tensor, target_tensor, explanation_type: str="guided_gradcam", **kwargs):
         # get explanation specific parameters
 
         if explanation_type == "guided_gradcam":
@@ -370,7 +370,7 @@ class XILUtils:
             if model is None:
                 raise ValueError("Model must be provided for Guided GradCAM.")
 
-            guided_gradcam_explanation = XILUtils.guided_gradcam_explain(input_tensor, model, device, target_layers).unsqueeze(1)
+            guided_gradcam_explanation = XILUtils.guided_gradcam_explain(input_tensor, target_tensor, model, device, target_layers).unsqueeze(1)
             guided_gradcam_explanation = XILUtils.minmax_normalize_tensor(guided_gradcam_explanation)
             result = guided_gradcam_explanation * binary_mask_tensor
         else:
