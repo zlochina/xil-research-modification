@@ -93,7 +93,9 @@ class GuidedBackpropagation:
     """
 
     def __init__(self, model, device):
-        self.model = GuidedBackpropReLUModel(model.to(device))
+        import copy
+        model_copy = copy.deepcopy(model)
+        self.model = GuidedBackpropReLUModel(model_copy.to(device))
         self.model.eval()
 
     def generate_gradients(self, input_image, target):
