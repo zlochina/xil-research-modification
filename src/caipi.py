@@ -218,7 +218,7 @@ def to_counter_examples(strategy: Strategy, x_tensor: torch.Tensor, explanation:
     assert len(x_tensor.shape) == 2,\
         f"x_tensor shape {x_tensor.shape} should be in form of (batch_size, features_size), but is not."
     # assert 3. note
-    assert set(torch.unique(explanation).tolist()) == {0, 1}, f"explanation is not binary."
+    assert set(torch.unique(explanation).tolist()) <= {0, 1}, f"explanation is not binary."
     batch_size, feature_size = x_tensor.shape
 
     # apply counter examples strategy
@@ -235,7 +235,7 @@ def to_counter_examples_2d_pic(strategy: Strategy, x_tensor: torch.Tensor, expla
     assert len(x_tensor.shape) == 4,\
         f"x_tensor shape {x_tensor.shape} should be in form of (batch_size, channels, height, width), but is not."
     # assert 3. note
-    assert set(torch.unique(explanation).tolist()) == {0, 1}, f"explanation is not binary."
+    assert set(torch.unique(explanation).tolist()) <= {0, 1}, f"explanation is not binary."
     batch_size, channels, height, width = x_tensor.shape
 
     # apply counter examples strategy

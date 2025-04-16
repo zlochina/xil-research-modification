@@ -364,6 +364,7 @@ class XILUtils:
             target_layers = kwargs.get("target_layers")
             device = kwargs.get("device")
             model = kwargs.get("model")
+            threshold = kwargs.get("threshold", 0.5)
 
             if target_layers is None:
                 raise ValueError("Target layers must be provided for Guided GradCAM.")
@@ -373,7 +374,7 @@ class XILUtils:
                 raise ValueError("Model must be provided for Guided GradCAM.")
 
             guided_gradcam_explanation = XILUtils.guided_gradcam_explain(input_tensor, target_tensor, model, device, target_layers).unsqueeze(1)
-            result = guided_gradcam_explanation * binary_mask_tensor
+            result = guided_gradcam_explanation * binary_mask_tensor > threshold
         else:
             raise NotImplementedError(f"Explanation type '{explanation_type}' is not implemented.")
         return result
