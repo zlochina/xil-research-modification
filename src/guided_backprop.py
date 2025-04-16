@@ -116,6 +116,9 @@ class GuidedBackpropagation:
         # Backward pass
         model_output.backward(gradient=target)
 
+        # Return image to original state
+        input_image.requires_grad = False
+
         # Return gradients
         return input_image.grad.data.clone()
 

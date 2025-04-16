@@ -147,9 +147,14 @@ class XILUtils:
         certainties = []
         is_correct = []
 
-        gb_model = None
+        grayscale_cams = XILUtils.gradcam_explain(examples, model, device, target_layers)
         if guided_backprop:
-            gb_model = nativeGuidedBackpropReLUModel(model=model, device=device)
+            grayscale_maps = XILUtils.guided_gradcam_explain(examples, targets, model, device, target_layers)
+        else:
+            grayscale_maps = grayscale_cams
+
+        grayscale_maps = list(grayscale_maps.detach().cpu().numpy())
+        grayscale_cams = list(grayscale_cams.detach().cpu().numpy())
 
         model.eval()
         for index in range(n_examples):
@@ -175,17 +180,7 @@ class XILUtils:
             img: numpy.ndarray = example.reshape((28, 28, 1)).cpu().repeat(1, 1, 3).numpy()
             images.append(img)
 
-            # Generate GradCAM
-            with GradCAM(model=model, target_layers=target_layers) as cam:
-                input_tensor = example.unsqueeze(0)
-                grayscale_cam = cam(input_tensor=input_tensor, targets=None, aug_smooth=False, eigen_smooth=False)
-                grayscale_cam = numpy.squeeze(grayscale_cam, axis=0) # squeeze for example from (1, 28, 28) to (28, 28)
-                if guided_backprop:
-                    grayscale_cam *= numpy.squeeze(gb_model(input_tensor, target_category=None), axis=-1)
-
-                grayscale_maps.append(XILUtils.minmax_normalize_tensor(torch.tensor(grayscale_cam).unsqueeze(0)).squeeze().numpy())
-
-            cam_image = show_cam_on_image(img, grayscale_cam, use_rgb=False)
+            cam_image = show_cam_on_image(img, grayscale_maps[index], use_rgb=False)
             cam_images.append(cam_image)
 
         return dict(images=images, cam_images=cam_images, grayscale_maps=grayscale_maps, predictions=predictions,
@@ -339,19 +334,26 @@ class XILUtils:
         return tensor - diff
 
     @staticmethod
+    def gradcam_explain(x_batch, model, device, target_layers):
+        model.eval()
+
+        with GradCAM(model=model, target_layers=target_layers) as cam:
+            grayscale_cam = torch.tensor(cam(input_tensor=x_batch, targets=None, aug_smooth=False, eigen_smooth=False), device=device)
+
+        return grayscale_cam
+
+    @staticmethod
     def guided_gradcam_explain(x_batch, target_batch, model, device, target_layers):
         gb_model = guided_backprop.GuidedBackpropagation(model=model, device=device)
 
         model.eval()
 
-        # Generate GradCAM
-        with GradCAM(model=model, target_layers=target_layers) as cam:
-            grayscale_cam = torch.tensor(cam(input_tensor=x_batch, targets=None, aug_smooth=False, eigen_smooth=False), device=device)
-            gb_model_out = XILUtils.minmax_normalize_tensor(gb_model(x_batch, target_batch))[:, 0]
-            # !!! Normalizing output of guided backpropagation is having a positive effect on visualising
-            grayscale_cam *= gb_model_out
+        grayscale_cam = XILUtils.gradcam_explain(x_batch, model, device, target_layers)
+        gb_model_out = XILUtils.minmax_normalize_tensor(gb_model(x_batch, target_batch))[:, 0]
+        # !!! Normalizing output of guided backpropagation is having a positive effect on visualising
+        grayscale_cam *= gb_model_out
 
-        return grayscale_cam
+        return XILUtils.minmax_normalize_tensor(grayscale_cam)
 
     @staticmethod
     def create_explanation(input_tensor: torch.Tensor, binary_mask_tensor: torch.Tensor, target_tensor, explanation_type: str="guided_gradcam", **kwargs):
@@ -371,7 +373,6 @@ class XILUtils:
                 raise ValueError("Model must be provided for Guided GradCAM.")
 
             guided_gradcam_explanation = XILUtils.guided_gradcam_explain(input_tensor, target_tensor, model, device, target_layers).unsqueeze(1)
-            guided_gradcam_explanation = XILUtils.minmax_normalize_tensor(guided_gradcam_explanation)
             result = guided_gradcam_explanation * binary_mask_tensor
         else:
             raise NotImplementedError(f"Explanation type '{explanation_type}' is not implemented.")
