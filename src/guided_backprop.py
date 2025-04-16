@@ -110,14 +110,21 @@ class GuidedBackpropagation:
             Gradients of the same shape as input_image
         """
         # Forward pass
-        input_image.requires_grad = True
+        input_image_requires_grad = input_image.requires_grad
+        if not input_image_requires_grad:
+            input_image.requires_grad = True
+        else:
+            # If already requires grad, we need to detach and clone it
+            input_image = input_image.detach().clone()
+            input_image.requires_grad = True
         model_output: torch.Tensor = self.model(input_image)
 
         # Backward pass
         model_output.backward(gradient=target)
 
         # Return image to original state
-        input_image.requires_grad = False
+        if not input_image_requires_grad:
+            input_image.requires_grad = False
 
         # Return gradients
         return input_image.grad.data.clone()
