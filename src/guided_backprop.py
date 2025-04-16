@@ -34,27 +34,27 @@ class GuidedBackpropReLU(Function):
         return grad_input
 
 
-class GuidedBackpropReLUModule(nn.Module):
+class _GuidedBackpropReLUModule(nn.Module):
     """
     Module that applies GuidedBackpropReLU function.
     This is needed because Functions can't be directly assigned as module attributes.
     """
 
     def __init__(self):
-        super(GuidedBackpropReLUModule, self).__init__()
+        super(_GuidedBackpropReLUModule, self).__init__()
 
     def forward(self, input):
         return GuidedBackpropReLU.apply(input)
 
 
-class GuidedBackpropReLUModel(nn.Module):
+class _GuidedBackpropReLUModel(nn.Module):
     """
     Wrapper model that replaces all ReLU activations with GuidedBackpropReLU
     for guided backpropagation visualization.
     """
 
     def __init__(self, model):
-        super(GuidedBackpropReLUModel, self).__init__()
+        super(_GuidedBackpropReLUModel, self).__init__()
         self.model = model
         self.model.eval()  # Set model to evaluation mode
 
@@ -68,17 +68,17 @@ class GuidedBackpropReLUModel(nn.Module):
         """
         for name, module in self.model.named_children():
             if isinstance(module, nn.ReLU):
-                setattr(self.model, name, GuidedBackpropReLUModule())
+                setattr(self.model, name, _GuidedBackpropReLUModule())
             elif len(module._modules) > 0:  # Check if module has children
                 # Process the children but keep the original module
-                self._replace_all_layer_type_recursive(module, nn.ReLU, GuidedBackpropReLUModule())
+                self._replace_all_layer_type_recursive(module, nn.ReLU, _GuidedBackpropReLUModule())
 
     @staticmethod
     def _replace_all_layer_type_recursive(model, old_layer_type, new_layer):
         for name, layer in model._modules.items():
             if isinstance(layer, old_layer_type):
                 model._modules[name] = new_layer
-            GuidedBackpropReLUModel._replace_all_layer_type_recursive(layer, old_layer_type, new_layer)
+            _GuidedBackpropReLUModel._replace_all_layer_type_recursive(layer, old_layer_type, new_layer)
 
     def forward(self, input):
         """
@@ -95,7 +95,7 @@ class GuidedBackpropagation:
     def __init__(self, model, device):
         import copy
         model_copy = copy.deepcopy(model)
-        self.model = GuidedBackpropReLUModel(model_copy.to(device))
+        self.model = _GuidedBackpropReLUModel(model_copy.to(device))
         self.model.eval()
 
     def generate_gradients(self, input_image, target):
