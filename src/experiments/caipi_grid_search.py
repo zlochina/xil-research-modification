@@ -180,9 +180,9 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
                                                                                                     28)  # TODO update to be dynamic
             # populate dataset with new data
             current_data = torch.vstack((current_data, counterexamples))
-            current_labels = torch.vstack((current_labels, (informative_targets.repeat_interleave(ce_num, dim=1))))
+            current_labels = torch.vstack((current_labels, (informative_targets.repeat_interleave(ce_num, dim=0))))
             current_binary_masks = torch.vstack(
-                (current_binary_masks, informative_binary_masks.repeat_interleave(ce_num, dim=1)))
+                (current_binary_masks, informative_binary_masks.repeat_interleave(ce_num, dim=0)))
             # fit
             grid_train_dl = DataLoader(TensorDataset(current_data, current_labels), batch_size=batch_size, shuffle=True)
             train(grid_model, grid_train_dl, adam_optimizer, loss, verbose=False)
