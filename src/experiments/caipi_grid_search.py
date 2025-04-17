@@ -96,7 +96,7 @@ def define_paramaters(inputs, targets):
 
 def grid_search(filename: Path, misleading_ds_train, model_confounded, test_dataloader, device, loss, threshold,
                 num_classes=2, lr=1e-3):
-    parameters_grid = define_paramaters(misleading_ds_train.data, misleading_ds_train.labels)
+    parameters_grid = define_paramaters(misleading_ds_train.data.to(device), misleading_ds_train.labels.to(device))
     combinations = list(itertools.product(*parameters_grid.values()))
     label_translation = dict(zero=torch.tensor((1, 0), device=device), eight=torch.tensor((0, 1), device=device))
 

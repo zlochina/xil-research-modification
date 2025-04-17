@@ -156,7 +156,7 @@ class SubstitutionStrategy(Strategy):
             raise ValueError("Target is not provided.")
         # Step 1: Match target to self._targets
         # Find indices where target matches self._targets
-        target_indices = torch.where((self._targets == target.unsqueeze(1)).all(dim=2))[1]
+        target_indices = torch.where((self._targets == target).all(dim=1))[1]
 
         # Select corresponding inputs for the matched targets
         matched_inputs = self._inputs[target_indices]
