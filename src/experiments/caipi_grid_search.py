@@ -188,7 +188,7 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
             train(grid_model, grid_train_dl, adam_optimizer, loss, verbose=False)
             # evaluate accuracy
             # every 10 epochs
-            if epoch % 32 == 0:
+            if epoch % 16 == 0:
                 print(f"{len(current_labels)=}, {len(current_data)=}, {len(current_binary_masks)=}")
                 acc, avg_loss = evaluate(grid_model, test_dataloader, loss, verbose=False)
                 current_run_info[f"{ce_num=}"][f"{strategy}"][epoch] = {"accuracy": acc, "average_loss": avg_loss}
