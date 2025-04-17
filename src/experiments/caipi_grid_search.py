@@ -100,12 +100,22 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
     combinations = list(itertools.product(*parameters_grid.values()))
     label_translation = dict(zero=torch.tensor((1, 0), device=device), eight=torch.tensor((0, 1), device=device))
 
-    def get_informative_instance(targets, num_of_instances):
+    used_indices = set()
+
+    def get_informative_instance(targets, num_of_instances, dataset_size):
         # just take some random eight
         eight = label_translation["eight"]
-        indices = (targets == eight).all(dim=1)
+        indices: torch.Tensor = torch.arange(dataset_size, device=device)[(targets == eight).all(dim=1)]
+        # remove used indices
+        indices = torch.tensor(list(set(indices.tolist()) - used_indices), device=device)
+
         # take a random eight
-        indices = torch.randint(high=indices.size(0), size=(num_of_instances,))
+        perm = torch.randperm(len(indices), device=device)
+        indices = indices[perm[:num_of_instances]]
+
+        # update used_indices
+        used_indices.update(indices.tolist())
+
         return indices
 
     def save_info_to_json(filename: Path, info: dict):
@@ -120,7 +130,13 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
     misleading_labels = misleading_ds_train.labels.to(device)
     misleading_binary_masks = misleading_ds_train.binary_masks.to(device)
     info_dictionary = []
+
+    original_data_size = misleading_data.size(0)
+
     for ce_num, strategy, num_of_instances in combinations:
+        # clear used indices
+        used_indices.clear()
+
         print(f"Checking out {ce_num=}, {strategy=}")
         grid_model = CNNTwoConv(num_classes, device)
         grid_model.load_state_dict(model_confounded.state_dict())
@@ -137,7 +153,7 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
         epoch = 1
         while accuracy < threshold:
             # take some input
-            indices = get_informative_instance(current_labels, num_of_instances)
+            indices = get_informative_instance(current_labels[:original_data_size], num_of_instances, original_data_size)
             informative_instances = current_data[indices]
             # predict input = prediction
             grid_model.eval()
@@ -165,7 +181,6 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
             # populate dataset with new data
             current_data = torch.vstack((current_data, counterexamples))
             current_labels = torch.vstack((current_labels, (informative_targets.repeat_interleave(ce_num, dim=1))))
-            # TODO: check if it is in correct shape, in correct order
             current_binary_masks = torch.vstack(
                 (current_binary_masks, informative_binary_masks.repeat_interleave(ce_num, dim=1)))
             # fit
