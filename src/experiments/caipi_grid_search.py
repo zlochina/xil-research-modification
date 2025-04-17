@@ -88,7 +88,7 @@ def define_paramaters(inputs, targets):
     alternative_value_strategy = AlternativeValueStrategy(torch.zeros(image_shape, device=device), image_shape)
     parameters_grid = {
         "ce_num": [1, 2, 3, 4, 5],
-        "strategy": [random_strategy, substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy],
+        "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy, random_strategy],
         "num_of_instances": [5]
     }
     return parameters_grid
@@ -176,7 +176,7 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
 
             # create counterexamples
             counterexamples = to_counter_examples_2d_pic(strategy, informative_instances, explanation, ce_num,
-                                                         target=label_translation["eight"]).reshape(-1, 1, 28,
+                                                         target=label_translation["eight"].unsqueeze(0)).reshape(-1, 1, 28,
                                                                                                     28)  # TODO update to be dynamic
             # populate dataset with new data
             current_data = torch.vstack((current_data, counterexamples))

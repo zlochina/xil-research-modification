@@ -156,7 +156,7 @@ class SubstitutionStrategy(Strategy):
             raise ValueError("Target is not provided.")
         # Step 1: Match target to self._targets
         # Find indices where target matches self._targets
-        target_indices = torch.where((self._targets == target).all(dim=1))[1]
+        target_indices = torch.where((self._targets == target).all(dim=1))[0]
 
         # Select corresponding inputs for the matched targets
         matched_inputs = self._inputs[target_indices]
@@ -167,11 +167,11 @@ class SubstitutionStrategy(Strategy):
 
         # Step 2: Randomly choose input for each counter example
         # Generate random indices for selecting inputs
-        random_indices = torch.randint(0, matched_inputs.shape[0], (out.shape[0], ce_num),
+        random_indices = torch.randint(0, matched_inputs.shape[0], size=(out.shape[0],),
                                        device=out.device, dtype=torch.long)
 
         # Select randomly chosen inputs
-        random_inputs = matched_inputs[random_indices, torch.arange(out.shape[1]).unsqueeze(0)]
+        random_inputs = matched_inputs[random_indices].unsqueeze(1).repeat_interleave(ce_num, dim=1)
 
         # Step 3: Replace elements marked by binary mask explanation with randomly chosen inputs
         return torch.where(explanation, random_inputs, out)
@@ -198,7 +198,7 @@ class MarginalizedSubstitutionStrategy(Strategy):
         # Step 2: Randomly choose input for each counter example
         # Generate random indices for selecting inputs
         random_indices = torch.randint(0, matched_inputs.shape[0], (out.shape[0], ce_num),
-                                        device=out.device, dtype=torch.long)
+                                       device=out.device, dtype=torch.long)
         # Select randomly chosen inputs
         random_inputs = matched_inputs[random_indices, torch.arange(out.shape[1]).unsqueeze(0)]
 
