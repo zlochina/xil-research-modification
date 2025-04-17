@@ -89,7 +89,7 @@ def define_paramaters(inputs, targets):
     parameters_grid = {
         "ce_num": [1, 2, 3, 4, 5],
         "strategy": [random_strategy, substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy],
-        "num_of_instances": [1]
+        "num_of_instances": [5]
     }
     return parameters_grid
 
@@ -116,9 +116,9 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
         with filename.open('w', encoding='utf-8') as f:
             json.dump(info, f, indent=2, ensure_ascii=False)
 
-    misleading_data = misleading_ds_train.data
-    misleading_labels = misleading_ds_train.labels
-    misleading_binary_masks = misleading_ds_train.binary_masks
+    misleading_data = misleading_ds_train.data.to(device)
+    misleading_labels = misleading_ds_train.labels.to(device)
+    misleading_binary_masks = misleading_ds_train.binary_masks.to(device)
     info_dictionary = []
     for ce_num, strategy, num_of_instances in combinations:
         print(f"Checking out {ce_num=}, {strategy=}")
@@ -173,7 +173,7 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
             train(grid_model, grid_train_dl, adam_optimizer, loss, verbose=False)
             # evaluate accuracy
             # every 10 epochs
-            if epoch % 10 == 0:
+            if epoch % 32 == 0:
                 print(f"{len(current_labels)=}, {len(current_data)=}, {len(current_binary_masks)=}")
                 acc, avg_loss = evaluate(grid_model, test_dataloader, loss, verbose=False)
                 current_run_info[f"{ce_num=}"][f"{strategy}"][epoch] = {"accuracy": acc, "average_loss": avg_loss}
@@ -181,6 +181,8 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
                 save_info_to_json(filename, info_dictionary)
                 print(f"Epoch {epoch}: Accuracy: {100 * acc:.2f}%, Avg. Test Loss: {avg_loss:.4f}")
                 accuracy = acc
+                if epoch * num_of_instances > 2000:
+                    break
             # update epoch
             epoch += 1
 
