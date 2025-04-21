@@ -89,7 +89,8 @@ def define_paramaters(inputs, targets):
     alternative_value_strategy = AlternativeValueStrategy(torch.zeros(image_shape, device=device), image_shape)
     parameters_grid = {
         "ce_num": [1, 2, 3, 4, 5],
-        "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy, random_strategy],
+        "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy],
+        # "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy, random_strategy],
         "num_of_instances": [5]
     }
     return parameters_grid
