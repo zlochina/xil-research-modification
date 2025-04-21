@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 import torch
 
@@ -11,6 +10,8 @@ from src.caipi import RandomStrategy, SubstitutionStrategy, AlternativeValueStra
 from torch.optim import Adam
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
+import pandas as pd
+import argparse
 
 image_shape = torch.Size((1, 1, 28, 28))
 device = XILUtils.define_device()
@@ -95,7 +96,7 @@ def define_paramaters(inputs, targets):
 
 
 def grid_search(filename: Path, misleading_ds_train, model_confounded, test_dataloader, device, loss, threshold,
-                num_classes=2, lr=1e-3):
+                num_classes=2, lr=1e-3, save_every_nth_epoch=16):
     parameters_grid = define_paramaters(misleading_ds_train.data.to(device), misleading_ds_train.labels.to(device))
     combinations = list(itertools.product(*parameters_grid.values()))
     label_translation = dict(zero=torch.tensor((1, 0), device=device), eight=torch.tensor((0, 1), device=device))
@@ -118,18 +119,17 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
 
         return indices
 
-    def save_info_to_json(filename: Path, info: dict):
+    def save_info_to_csv(filename: Path, info: pd.DataFrame):
         # Ensure the parent directory exists
         filename.parent.mkdir(parents=True, exist_ok=True)
 
-        # Write the info dictionary to the file as JSON
-        with filename.open('w', encoding='utf-8') as f:
-            json.dump(info, f, indent=2, ensure_ascii=False)
+        # Write the info dictionary to the file as CSV
+        df.to_csv(filename.with_suffix('.csv'), index=False)
 
     misleading_data = misleading_ds_train.data.to(device)
     misleading_labels = misleading_ds_train.labels.to(device)
     misleading_binary_masks = misleading_ds_train.binary_masks.to(device)
-    info_dictionary = []
+    records = []
 
     original_data_size = misleading_data.size(0)
 
@@ -144,9 +144,6 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
         accuracy, _ = evaluate(grid_model, test_dataloader, loss, verbose=False)
         print(f"Initial accuracy: {100 * accuracy:.2f}%")
 
-        current_run_info = {f"{ce_num=}": {
-            f"{strategy}": {}
-        }}
         current_data = misleading_data.clone()
         current_labels = misleading_labels.clone()
         current_binary_masks = misleading_binary_masks.clone()
@@ -188,28 +185,65 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
             train(grid_model, grid_train_dl, adam_optimizer, loss, verbose=False)
             # evaluate accuracy
             # every 10 epochs
-            if epoch % 16 == 0:
-                print(f"{len(current_labels)=}, {len(current_data)=}, {len(current_binary_masks)=}")
+            if epoch % save_every_nth_epoch == 0:
+                print(f"Number of artificial instances {len(current_labels) - original_data_size}.")
                 acc, avg_loss = evaluate(grid_model, test_dataloader, loss, verbose=False)
-                current_run_info[f"{ce_num=}"][f"{strategy}"][epoch] = {"accuracy": acc, "average_loss": avg_loss}
-                info_dictionary.append(current_run_info)
-                save_info_to_json(filename, info_dictionary)
+                records.append({
+                    "ce_num": ce_num,
+                    "strategy": str(strategy),
+                    "epoch": epoch,
+                    "accuracy": float(acc),
+                    "average_loss": float(avg_loss),
+                })
+                df = pd.DataFrame(records)
+                save_info_to_csv(filename, df)
                 print(f"Epoch {epoch}: Accuracy: {100 * acc:.2f}%, Avg. Test Loss: {avg_loss:.4f}")
                 accuracy = acc
                 if epoch * num_of_instances > 2000:
                     break
             # update epoch
             epoch += 1
-
+        df = pd.DataFrame(records)
+        save_info_to_csv(filename, df)
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run grid search with counterexample injection and save results to CSV"
+    )
+    parser.add_argument(
+        "--threshold", "-t",
+        type=float,
+        default=0.95,
+        help="Accuracy threshold at which to stop each run"
+    )
+    parser.add_argument(
+        "--output_filename", "-o",
+        type=Path,
+        default=Path("caipi_expr/caipi_grid_search_1run.csv"),
+        help="Path to the CSV file where results will be written"
+    )
+    parser.add_argument(
+        "--current_path", "-p",
+        type=Path,
+        default=Path(__file__).parent,
+        help="Base directory for loading datasets and models"
+    )
+    args = parser.parse_args()
+
+    current_path = args.current_path
+
     # Load the dataset
-    current_path = Path(__file__).parent
     dataset = torch.load(current_path / "08_MNIST_output/misleading_dataset.pth")
-    misleading_ds_train = RRRDataset(dataset["inputs"], dataset["targets"], dataset["binary_masks"])
+    misleading_ds_train = RRRDataset(
+        dataset["inputs"],
+        dataset["targets"],
+        dataset["binary_masks"],
+    )
 
     model_confounded = CNNTwoConv(num_classes, device)
-    model_confounded.load_state_dict(torch.load(current_path / "08_MNIST_output/model_confounded.pth"))
+    model_confounded.load_state_dict(
+        torch.load(current_path / "08_MNIST_output/model_confounded.pth")
+    )
     model_confounded = model_confounded.to(device)
 
     dataset_test = torch.load(current_path / "08_MNIST_output/test_dataset.pth")
@@ -217,6 +251,15 @@ if __name__ == "__main__":
     test_dataloader = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
 
     loss = torch.nn.CrossEntropyLoss()
-    threshold = 0.95
-    grid_search(Path("caipi_expr/caipi_grid_search_1run.json"), misleading_ds_train, model_confounded,
-                test_dataloader, device, loss, threshold)
+    threshold = args.threshold
+    output_file = args.output_filename
+
+    grid_search(
+        output_file,
+        misleading_ds_train,
+        model_confounded,
+        test_dataloader,
+        device,
+        loss,
+        threshold,
+    )
