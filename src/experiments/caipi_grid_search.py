@@ -7,7 +7,7 @@ from src.experiments.cnn import CNNTwoConv
 import itertools
 from src.caipi import RandomStrategy, SubstitutionStrategy, AlternativeValueStrategy, MarginalizedSubstitutionStrategy, \
     to_counter_examples_2d_pic
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 import pandas as pd
@@ -91,7 +91,8 @@ def define_paramaters(inputs, targets):
         "ce_num": [1, 2, 3, 4, 5],
         "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy],
         # "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy, random_strategy],
-        "num_of_instances": [5]
+        "num_of_instances": [5],
+        "lr": [1e-3, 1e-4, 1e-5],
     }
     return parameters_grid
 
@@ -134,14 +135,15 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
 
     original_data_size = misleading_data.size(0)
 
-    for ce_num, strategy, num_of_instances in combinations:
+    for ce_num, strategy, num_of_instances, lr in combinations:
         # clear used indices
         used_indices.clear()
 
         print(f"Checking out {ce_num=}, {strategy=}")
         grid_model = CNNTwoConv(num_classes, device)
         grid_model.load_state_dict(model_confounded.state_dict())
-        adam_optimizer = Adam(grid_model.parameters(), lr=lr)
+        # optimizer = Adam(grid_model.parameters(), lr=lr)
+        optimizer = SGD(grid_model.parameters(), lr=lr, momentum=0.9)
         accuracy, _ = evaluate(grid_model, test_dataloader, loss, verbose=False)
         print(f"Initial accuracy: {100 * accuracy:.2f}%")
 
@@ -183,7 +185,7 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
                 (current_binary_masks, informative_binary_masks.repeat_interleave(ce_num, dim=0)))
             # fit
             grid_train_dl = DataLoader(TensorDataset(current_data, current_labels), batch_size=batch_size, shuffle=True)
-            train(grid_model, grid_train_dl, adam_optimizer, loss, verbose=False)
+            train(grid_model, grid_train_dl, optimizer, loss, verbose=False)
             # evaluate accuracy
             # every 10 epochs
             if epoch % save_every_nth_epoch == 0:
@@ -195,6 +197,7 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
                     "epoch": epoch,
                     "accuracy": float(acc),
                     "average_loss": float(avg_loss),
+                    "lr": lr,
                 })
                 df = pd.DataFrame(records)
                 save_info_to_csv(filename, df)
