@@ -90,10 +90,10 @@ def define_paramaters(inputs, targets):
     alternative_value_strategy = AlternativeValueStrategy(torch.zeros(image_shape, device=device), image_shape)
     parameters_grid = {
         "ce_num": [1, 2, 3, 4, 5],
-        "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy],
-        # "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy, random_strategy],
+        # "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy],
+        "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy, random_strategy],
         "num_of_instances": [5],
-        "lr": [1e-3, 1e-4, 1e-5],
+        "lr": [1e-1, 1e-2, 1e-3],
     }
     return parameters_grid
 
@@ -237,6 +237,9 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
                 "accuracy": float(acc),
                 "average_loss": float(avg_loss),
                 "lr": lr,
+                "from_ground_zero": from_ground_zero,
+                "num_of_instances_per_epoch": num_of_instances,
+                "num_of_artificial_instances": len(current_labels) - original_data_size,
             })
             df = pd.DataFrame(records)
             save_info_to_csv(filename, df)
