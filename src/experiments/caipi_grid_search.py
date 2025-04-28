@@ -111,7 +111,7 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
             if acc >= threshold:
                 print(f"Reached accuracy threshold of {threshold:.2f} at epoch {epoch}.")
                 break
-            if avg_loss + eps < best_loss:
+            if avg_loss < best_loss + eps:
                 best_loss = avg_loss
                 epochs_no_improve = 0
             else:
