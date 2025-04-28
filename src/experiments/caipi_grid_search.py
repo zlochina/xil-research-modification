@@ -119,6 +119,7 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
                 if epochs_no_improve >= no_improve_epochs_th:
                     print(f"Stopping training after {epochs_no_improve} epochs without improvement.")
                     break
+        epoch += 1
     return acc, avg_loss
 
 def grid_search(filename: Path, misleading_ds_train, model_confounded, test_dataloader, device, loss, threshold, optim,
