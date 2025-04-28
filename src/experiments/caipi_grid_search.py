@@ -122,7 +122,7 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
     return acc, avg_loss
 
 def grid_search(filename: Path, misleading_ds_train, model_confounded, test_dataloader, device, loss, threshold, optim,
-                num_classes=2, lr=1e-3, save_every_nth_epoch=16):
+                num_classes=2, lr=1e-3, save_every_nth_epoch=16, from_ground_zero=False):
     parameters_grid = define_paramaters(misleading_ds_train.data.to(device), misleading_ds_train.labels.to(device))
     combinations = list(itertools.product(*parameters_grid.values()))
     label_translation = dict(zero=torch.tensor((1, 0), device=device), eight=torch.tensor((0, 1), device=device))
@@ -218,9 +218,15 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
 
             # fit
             grid_train_dl = DataLoader(TensorDataset(current_data, current_labels), batch_size=batch_size, shuffle=True)
-            train(grid_model, grid_train_dl, optimizer, loss, verbose=False)
+            if from_ground_zero:
+                model_state_dict = model_confounded.state_dict()
             acc, avg_loss = fit_until_optimum_or_threshold(grid_model, grid_train_dl, test_dataloader, optimizer, loss, threshold=threshold,
                                           no_improve_epochs_th=save_every_nth_epoch)
+            if from_ground_zero:
+                model_confounded.load_state_dict(grid_model.state_dict())
+                # # save the model
+                # torch.save(model_confounded.state_dict(), current_path / "08_MNIST_output/model_confounded.pth")
+
 
             # evaluate accuracy
             print(f"Number of artificial instances {len(current_labels) - original_data_size}.")
@@ -267,12 +273,19 @@ if __name__ == "__main__":
         help="Base directory for loading datasets and models"
     )
     parser.add_argument(
-        "--optimizer", "-opt",
+        "--optimizer",
         type=str,
         default="sgd",
         choices=["adam", "sgd"],
         help="Optimizer to use for training the model"
     )
+    parser.add_argument(
+        "--train_from_ground_zero",
+        action="store_true",
+        help="If set, train from ground zero instead of using pretrained model with counterexmples from previous epochs",
+        default=False
+    )
+
     args = parser.parse_args()
 
     current_path = args.current_path
@@ -309,5 +322,7 @@ if __name__ == "__main__":
         loss,
         threshold,
         optimizer,
+        num_classes=num_classes,
         save_every_nth_epoch=3,
+        from_ground_zero=args.train_from_ground_zero,
     )
