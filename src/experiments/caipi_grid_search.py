@@ -285,6 +285,12 @@ if __name__ == "__main__":
         help="If set, train from ground zero instead of using pretrained model with counterexmples from previous epochs",
         default=False
     )
+    parser.add_argument(
+        "--no_improvement_epochs",
+        type=int,
+        default=10,
+        help="Number of epochs without improvement before stopping training"
+    )
 
     args = parser.parse_args()
 
@@ -323,6 +329,6 @@ if __name__ == "__main__":
         threshold,
         optimizer,
         num_classes=num_classes,
-        save_every_nth_epoch=3,
+        save_every_nth_epoch=args.no_improvement_epochs,
         from_ground_zero=args.train_from_ground_zero,
     )
