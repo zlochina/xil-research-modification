@@ -223,7 +223,7 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
             acc, avg_loss = fit_until_optimum_or_threshold(grid_model, grid_train_dl, test_dataloader, optimizer, loss, threshold=threshold,
                                           no_improve_epochs_th=save_every_nth_epoch)
             if from_ground_zero:
-                model_confounded.load_state_dict(model_state_dict)
+                grid_model.load_state_dict(model_state_dict)
                 # # save the model
                 # torch.save(model_confounded.state_dict(), current_path / "08_MNIST_output/model_confounded.pth")
 
