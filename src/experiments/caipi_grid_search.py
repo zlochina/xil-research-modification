@@ -52,6 +52,7 @@ def evaluate(model, test_dataloader, loss_fn, verbose=True):
             correct += (F.one_hot(pred.argmax(dim=1), num_classes=num_classes) == y_batch).sum().item() / num_classes
             assert correct % 1 == 0
 
+    # Accuracy, average loss
     return correct / total, test_loss / len(test_dataloader)
 
 
@@ -96,8 +97,31 @@ def define_paramaters(inputs, targets):
     }
     return parameters_grid
 
+def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, optimizer, loss_fn, threshold, no_improve_epochs_th=10, evaluate_every_nth_epoch=10):
+    # acc_history = []
+    epoch = 0
+    epochs_no_improve = 0
+    best_loss = float('inf')
+    eps = 1e-5
 
-def grid_search(filename: Path, misleading_ds_train, model_confounded, test_dataloader, device, loss, threshold,
+    while True:
+        train(model, train_dataloader, optimizer, loss_fn, verbose=False)
+        if epoch % evaluate_every_nth_epoch == 0:
+            acc, avg_loss = evaluate(model, test_dataloader, loss_fn, verbose=False)
+            if acc >= threshold:
+                print(f"Reached accuracy threshold of {threshold:.2f} at epoch {epoch}.")
+                break
+            if avg_loss + eps < best_loss:
+                best_loss = avg_loss
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+                if epochs_no_improve >= no_improve_epochs_th:
+                    print(f"Stopping training after {epochs_no_improve} epochs without improvement.")
+                    break
+    return acc, avg_loss
+
+def grid_search(filename: Path, misleading_ds_train, model_confounded, test_dataloader, device, loss, threshold, optim,
                 num_classes=2, lr=1e-3, save_every_nth_epoch=16):
     parameters_grid = define_paramaters(misleading_ds_train.data.to(device), misleading_ds_train.labels.to(device))
     combinations = list(itertools.product(*parameters_grid.values()))
@@ -139,11 +163,16 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
         # clear used indices
         used_indices.clear()
 
-        print(f"Checking out {ce_num=}, {strategy=}")
+        print(f"Checking out {ce_num=}, {strategy=}, {lr=}, {num_of_instances=}")
         grid_model = CNNTwoConv(num_classes, device)
         grid_model.load_state_dict(model_confounded.state_dict())
-        # optimizer = Adam(grid_model.parameters(), lr=lr)
-        optimizer = SGD(grid_model.parameters(), lr=lr, momentum=0.9)
+        optimizer = None
+        if optim == "adam":
+            optimizer = Adam(grid_model.parameters(), lr=lr)
+        elif optim == "sgd":
+            optimizer = SGD(grid_model.parameters(), lr=lr, momentum=0.9)
+        else:
+            raise ValueError(f"Unknown optimizer: {optim}")
         accuracy, _ = evaluate(grid_model, test_dataloader, loss, verbose=False)
         print(f"Initial accuracy: {100 * accuracy:.2f}%")
 
@@ -155,10 +184,12 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
             # take some input
             indices = get_informative_instance(current_labels[:original_data_size], num_of_instances, original_data_size)
             informative_instances = current_data[indices]
+
             # predict input = prediction
             grid_model.eval()
             with torch.no_grad():
                 prediction = grid_model(informative_instances)
+
             # TODO: special case. I've got no idea what to do, when prediction is wrong
             # get indices of NOT the special case (exclusion)
             special_case_indices = torch.where(prediction.argmax(dim=1) == current_labels[indices].argmax(dim=1))[0]
@@ -167,6 +198,7 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
                 informative_instances = informative_instances[special_case_indices]
                 indices = indices[special_case_indices]
                 prediction = prediction[special_case_indices]
+
             # get target, explanation
             informative_targets = current_labels[indices]
             informative_binary_masks = current_binary_masks[indices]
@@ -183,28 +215,30 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
             current_labels = torch.vstack((current_labels, (informative_targets.repeat_interleave(ce_num, dim=0))))
             current_binary_masks = torch.vstack(
                 (current_binary_masks, informative_binary_masks.repeat_interleave(ce_num, dim=0)))
+
             # fit
             grid_train_dl = DataLoader(TensorDataset(current_data, current_labels), batch_size=batch_size, shuffle=True)
             train(grid_model, grid_train_dl, optimizer, loss, verbose=False)
+            acc, avg_loss = fit_until_optimum_or_threshold(grid_model, grid_train_dl, test_dataloader, optimizer, loss, threshold=threshold,
+                                          no_improve_epochs_th=save_every_nth_epoch)
+
             # evaluate accuracy
-            # every 10 epochs
-            if epoch % save_every_nth_epoch == 0:
-                print(f"Number of artificial instances {len(current_labels) - original_data_size}.")
-                acc, avg_loss = evaluate(grid_model, test_dataloader, loss, verbose=False)
-                records.append({
-                    "ce_num": ce_num,
-                    "strategy": str(strategy),
-                    "epoch": epoch,
-                    "accuracy": float(acc),
-                    "average_loss": float(avg_loss),
-                    "lr": lr,
-                })
-                df = pd.DataFrame(records)
-                save_info_to_csv(filename, df)
-                print(f"Epoch {epoch}: Accuracy: {100 * acc:.2f}%, Avg. Test Loss: {avg_loss:.4f}")
-                accuracy = acc
-                if epoch * num_of_instances > 2000:
-                    break
+            print(f"Number of artificial instances {len(current_labels) - original_data_size}.")
+            records.append({
+                "ce_num": ce_num,
+                "strategy": str(strategy),
+                "epoch": epoch,
+                "accuracy": float(acc),
+                "average_loss": float(avg_loss),
+                "lr": lr,
+            })
+            df = pd.DataFrame(records)
+            save_info_to_csv(filename, df)
+            print(f"Epoch {epoch}: Accuracy: {100 * acc:.2f}%, Avg. Test Loss: {avg_loss:.4f}")
+            accuracy = acc
+            if epoch * num_of_instances > 2000:
+                break
+
             # update epoch
             epoch += 1
         df = pd.DataFrame(records)
@@ -232,6 +266,13 @@ if __name__ == "__main__":
         default=Path(__file__).parent,
         help="Base directory for loading datasets and models"
     )
+    parser.add_argument(
+        "--optimizer", "-opt",
+        type=str,
+        default="sgd",
+        choices=["adam", "sgd"],
+        help="Optimizer to use for training the model"
+    )
     args = parser.parse_args()
 
     current_path = args.current_path
@@ -257,6 +298,7 @@ if __name__ == "__main__":
     loss = torch.nn.CrossEntropyLoss()
     threshold = args.threshold
     output_file = args.output_filename
+    optimizer = args.optimizer
 
     grid_search(
         output_file,
@@ -266,4 +308,6 @@ if __name__ == "__main__":
         device,
         loss,
         threshold,
+        optimizer,
+        save_every_nth_epoch=3,
     )
