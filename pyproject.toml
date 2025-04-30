@@ -1,30 +1,21 @@
 [tool.poetry]
-name = "xil-research-modification"
+name = "right for the right reasons (rrr) mlp"
 version = "0.1.0"
-description = ""
+description = "Multilayer Perceptron with RRR loss"
 authors = ["Vladyslav Zlochevskyi <zlochvla@fel.cvut.cz>"]
+license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
-pillow = "^10.4.0"
-torch = "^2.4.0"
-torchvision = "^0.19.0"
-scipy = "^1.14.1"
-autograd = "1.1.7"
+python = ">=3.9,<4.0"
+torch = "^2.5.1"
+numpy = "2.0.2"
+torchvision = "^0.20.1"
 matplotlib = "^3.9.2"
-opencv-python = "^4.10.0.84"
-numpy = "^2.1.1"
-scikit-image = "^0.24.0"
-scikit-learn = "^1.5.1"
-seaborn = "0.9.0"
-setproctitle = "1.1.10"
-spectral = "0.19"
-tensorboardx = "1.6"
-tqdm = "4.43.0"
-xlrd = "1.2.0"
-blessings = "^1.7"
-lime = "^0.2.0.1"
+pandas = "^2.2.3"
+grad-cam = "^1.5.4"
+lovely-tensors = "^0.1.18"
+progressbar2 = "^4.5.0"
 
 
 [build-system]
