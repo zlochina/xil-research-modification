@@ -1,9 +1,0 @@
-autograd==1.1.7
-blessings
-future
-gensim              
-lime                 
-scikit-image==0.15.0
-scikit-learn==0.20.3
-spacy                
-tensorflow           

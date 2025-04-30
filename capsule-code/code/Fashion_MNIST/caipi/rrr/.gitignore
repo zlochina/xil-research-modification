@@ -1,6 +1,0 @@
-**/data/decoy-mnist.npz
-**/data/toy-colors.npz
-**/data/*.gz
-*.DS_Store
-**/.ipynb_checkpoints/
-**/__pycache__/
