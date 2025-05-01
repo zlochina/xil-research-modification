@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "xil-research-modification"
 version = "0.1.0"
-description = "Multilayer Perceptron with RRR loss"
+description = "RRR project"
 authors = ["Vladyslav Zlochevskyi <zlochvla@fel.cvut.cz>"]
 license = "MIT"
 readme = "README.md"
