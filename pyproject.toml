@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "right for the right reasons (rrr) mlp"
+name = "xil-research-modification"
 version = "0.1.0"
 description = "Multilayer Perceptron with RRR loss"
 authors = ["Vladyslav Zlochevskyi <zlochvla@fel.cvut.cz>"]
