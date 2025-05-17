@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from pytorch_grad_cam import GradCAM, GuidedBackpropReLUModel as nativeGuidedBackpropReLUModel
 from pytorch_grad_cam.utils.image import show_cam_on_image
 import numpy
-import src.guided_backprop as guided_backprop
+from . import guided_backprop
 
 # TODO: remove this class or replace variables with such as `model`, `optimizer`, `loss_fn` etc.
 class ModelConfig:
