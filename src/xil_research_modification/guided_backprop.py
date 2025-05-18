@@ -98,7 +98,7 @@ class GuidedBackpropagation:
         self.model = _GuidedBackpropReLUModel(model_copy.to(device))
         self.model.eval()
 
-    def generate_gradients(self, input_image, target):
+    def generate_gradients(self, input_image, target, target_extract):
         """
         Generate guided backpropagation gradients for an input image.
 
@@ -119,6 +119,8 @@ class GuidedBackpropagation:
             input_image.requires_grad = True
         model_output: torch.Tensor = self.model(input_image)
 
+        if not target_extract is None:
+            model_output = target_extract(model_output)
         # Backward pass
         model_output.backward(gradient=target)
 
@@ -129,5 +131,5 @@ class GuidedBackpropagation:
         # Return gradients
         return input_image.grad.data.clone()
 
-    def __call__(self, input_image:torch.Tensor, target:torch.Tensor, *args, **kwargs):
-        return self.generate_gradients(input_image, target)
+    def __call__(self, input_image:torch.Tensor, target:torch.Tensor, target_extract=None, *args, **kwargs):
+        return self.generate_gradients(input_image, target, target_extract)
