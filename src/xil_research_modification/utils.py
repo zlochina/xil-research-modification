@@ -4,19 +4,8 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from pytorch_grad_cam import GradCAM, GuidedBackpropReLUModel as nativeGuidedBackpropReLUModel
 from pytorch_grad_cam.utils.image import show_cam_on_image
-import numpy
+import numpy as np
 from . import guided_backprop
-
-# TODO: remove this class or replace variables with such as `model`, `optimizer`, `loss_fn` etc.
-class ModelConfig:
-    LEARNING_RATE = 1e-3
-    BATCH_SIZE = 64
-    EPOCHS = 5
-
-    def __init__(self, learning_rate=LEARNING_RATE, batch_size=BATCH_SIZE, epochs=EPOCHS):
-        self.learning_rate = learning_rate
-        self.batch_size = batch_size
-        self.epochs = epochs
 
 class XILUtils:
     @staticmethod
@@ -86,12 +75,13 @@ class XILUtils:
         print(f"Test Error: \n Accuracy: {(100 * correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
 
     @staticmethod
-    def train_loop(dataloader: torch.utils.data.DataLoader, model: torch.nn.Module, loss_fn, optimizer, model_config: ModelConfig, device: str):
+    def train_loop(dataloader: torch.utils.data.DataLoader, model: torch.nn.Module, loss_fn, optimizer, device: str):
 
         size = len(dataloader.dataset)
+        batch_size = dataloader.batch_size
 
         model.train()
-        for batch, (X, y) in enumerate(dataloader):
+        for batch_i, (X, y) in enumerate(dataloader):
             # move X and y to device
             X, y = X.to(device), y.to(device)
             # Compute prediction and loss
@@ -103,12 +93,14 @@ class XILUtils:
             optimizer.step()
             optimizer.zero_grad()
 
-            if batch % 100 == 0:
-                loss, current = loss.item(), batch * model_config.batch_size + len(X)
+            if batch_i % 100 == 0:
+                loss, current = loss.item(), batch_i * batch_size + len(X)
                 print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
 
+    standard_aggregation = lambda input_tensor: torch.argmax(input_tensor, dim=-1)
     @staticmethod
-    def test_loop(dataloader, model, loss_fn, device):
+    def test_loop(dataloader, model, loss_fn, device, prediction_agg=standard_aggregation, target_agg=standard_aggregation):
+        # Prediction and Target aggregations should be such that there is a single number for correctness of the item
         model.eval()
         size = len(dataloader.dataset)
         num_batches = len(dataloader)
@@ -120,7 +112,7 @@ class XILUtils:
                 X, y = X.to(device), y.to(device)
                 pred = model(X)
                 test_loss += loss_fn(pred, y).item()
-                correct += (pred.argmax(1) == y).type(torch.float).sum().item()
+                correct += (prediction_agg(pred) == target_agg(y)).type(torch.float).sum().item()
 
             test_loss /= num_batches
             correct /= size
@@ -130,7 +122,7 @@ class XILUtils:
     # Explainers
 
     @staticmethod
-    def apply_gradcam(model, target_layers, n_examples, dataset, num_classes, device, shuffle_ds=False, batch_num=0, batch_size=5, guided_backprop=False):
+    def apply_gradcam(model, target_layers, dataset, device, shuffle_ds=False, batch_num=0, batch_size=5, guided_gradcam=False, **kwargs):
         model.eval()
         # Get batch
         batch = XILUtils._get_batch_from_dataset(dataset, batch_num, batch_size, shuffle_ds)
@@ -142,34 +134,45 @@ class XILUtils:
         # Process all examples
         images = []
         cam_images = []
-        grayscale_maps = []
         predictions = []
         certainties = []
         is_correct = []
 
-        grayscale_cams = XILUtils.gradcam_explain(examples, model, device, target_layers)
-        if guided_backprop:
-            grayscale_maps = XILUtils.guided_gradcam_explain(examples, targets, model, device, target_layers)
+        if guided_gradcam:
+            grayscale_maps = XILUtils.guided_gradcam_explain(
+                examples, targets, model, device, target_layers,
+                target_classification_criterium=kwargs.get(
+                    "target_classification_criterium"),
+                aug_smooth=kwargs.get("aug_smooth", False),
+                eigen_smooth=kwargs.get("eigen_smooth", False),
+                normalize=kwargs.get("normalize", True)
+            )
         else:
-            grayscale_maps = grayscale_cams
+            grayscale_maps = XILUtils.gradcam_explain(
+                examples, model, device, target_layers,
+                target_classification_criterium=kwargs.get(
+                    "target_classification_criterium"),
+                aug_smooth=kwargs.get("aug_smooth", False),
+                eigen_smooth=kwargs.get("eigen_smooth", False),
+                cam_class=kwargs.get("cam_class", GradCAM)
+            )
 
-        grayscale_maps = list(grayscale_maps.detach().cpu().numpy())
-        grayscale_cams = list(grayscale_cams.detach().cpu().numpy())
+        grayscale_maps = np.transpose(grayscale_maps.detach().cpu().numpy(), (0, 2, 3, 1))
+        grayscale_maps = list(grayscale_maps)
 
-        model.eval()
-        for index in range(n_examples):
+        for index in range(batch_size):
             example = examples[index]
             target = targets[index]
 
             # Get prediction
             prediction_probs = model(example.unsqueeze(0).to(device))
-            prediction = torch.zeros(num_classes, device=device)
-            prediction[prediction_probs.argmax()] = 1
+            prediction = torch.nn.functional.one_hot(prediction_probs.argmax(),
+                                                     num_classes=prediction_probs.shape[-1])
             certainty = prediction_probs.max().item() * 100
 
             predictions.append(prediction_probs.argmax().item())
             certainties.append(certainty)
-            is_correct.append(all(prediction == target))
+            is_correct.append(prediction.equal(target.to(device)))
 
             print(f"\nExample {index}:")
             print(f"Shape of example: {example.shape}")
@@ -177,17 +180,24 @@ class XILUtils:
             print(f"Predicted target: {prediction} with {certainty:.3f}% certainty. Correct? {all(prediction == target)}")
 
             # Prepare image
-            img: numpy.ndarray = example.reshape((28, 28, 1)).cpu().repeat(1, 1, 3).numpy()
-            images.append(img)
+            img_np = example.cpu().numpy()
 
-            cam_image = show_cam_on_image(img, grayscale_maps[index], use_rgb=False)
+            if img_np.ndim == 3:
+                img_np = np.transpose(img_np, (1, 2, 0))  # CxHxW → HxWxC
+
+            if img_np.shape[2] == 1:
+                img_np = np.repeat(img_np, 3, axis=2)  # Grayscale → RGB
+
+            images.append(img_np)
+
+            cam_image = show_cam_on_image(img_np, grayscale_maps[index], use_rgb=False)
             cam_images.append(cam_image)
 
         return dict(images=images, cam_images=cam_images, grayscale_maps=grayscale_maps, predictions=predictions,
                     certainties=certainties, is_correct=is_correct)
 
     @staticmethod
-    def plot_three_columns(plt, columns, n_examples, titles, cmap='viridis'):
+    def plot_three_columns(plt, columns, n_examples, titles=None, cmap='viridis'):
         fig, axes = plt.subplots(n_examples, 3, figsize=(18, 6 * n_examples))
         if n_examples == 1:
             axes = axes.reshape(1, -1)
@@ -197,17 +207,20 @@ class XILUtils:
         for idx in range(n_examples):
             # First subplot: CAM Overlay
             axes[idx, 0].imshow(column_1[idx], cmap=cmap)
-            axes[idx, 0].set_title(titles[0][idx])
+            if titles:
+                axes[idx, 0].set_title(titles[0][idx])
             axes[idx, 0].axis('off')
 
             # Second subplot: Original Image
             axes[idx, 1].imshow(column_2[idx], cmap=cmap)
-            axes[idx, 1].set_title(titles[1][idx])
+            if titles:
+                axes[idx, 1].set_title(titles[1][idx])
             axes[idx, 1].axis('off')
 
             # Third subplot: Attention Map
             axes[idx, 2].imshow(column_3[idx])
-            axes[idx, 2].set_title(titles[2][idx])
+            if titles:
+                axes[idx, 2].set_title(titles[2][idx])
             axes[idx, 2].axis('off')
 
         plt.tight_layout()
@@ -237,15 +250,16 @@ class XILUtils:
 
 
     @staticmethod
-    def apply_and_show_gradcam(model, target_layers, n_examples, dataset, num_classes, labels, plt, device, shuffle_ds=False, batch_num=0, batch_size=5, guided_backprop=False):
+    def apply_and_show_gradcam(model, target_layers, dataset, labels, plt, device=torch.device('cpu'),
+                               shuffle_ds=False, batch_num=0, batch_size=5, guided_gradcam=False):
         # Calculate GradCAM
-        aggregated_gradcam_dict = XILUtils.apply_gradcam(model, target_layers, n_examples, dataset, num_classes, device=device, batch_num=batch_num,
-                               batch_size=batch_size, shuffle_ds=shuffle_ds, guided_backprop=guided_backprop)
+        aggregated_gradcam_dict = XILUtils.apply_gradcam(model, target_layers, dataset, device=device, batch_num=batch_num,
+                               batch_size=batch_size, shuffle_ds=shuffle_ds, guided_gradcam=guided_gradcam)
 
         XILUtils.plot_grad_cam(
             aggregated_gradcam_dict,
             labels,
-            n_examples,
+            batch_size,
             plt=plt
         )
 
@@ -334,22 +348,47 @@ class XILUtils:
         return tensor - diff
 
     @staticmethod
-    def gradcam_explain(x_batch, model, device, target_layers):
+    def gradcam_explain(
+            x_batch, model, device, target_layers,
+            target_classification_criterium=None,
+            aug_smooth=False,
+            eigen_smooth=False,
+            cam_class=GradCAM):
         model.eval()
 
-        with GradCAM(model=model, target_layers=target_layers) as cam:
-            grayscale_cam = torch.tensor(cam(input_tensor=x_batch, targets=None, aug_smooth=False, eigen_smooth=False), device=device)
+        with cam_class(model=model, target_layers=target_layers) as cam:
+            grayscale_cam = torch.tensor(
+                cam(
+                    input_tensor=x_batch, targets=target_classification_criterium, aug_smooth=aug_smooth,
+                    eigen_smooth=eigen_smooth)
+                ,
+                device=device
+            )
 
-        return grayscale_cam
+        return grayscale_cam.unsqueeze(1)
 
     @staticmethod
-    def guided_gradcam_explain(x_batch, target_batch, model, device, target_layers):
+    def guided_backprop_explain(x_batch, target_batch, model, device, normalize=True):
+        model.eval()
         gb_model = guided_backprop.GuidedBackpropagation(model=model, device=device)
+        gb_model_out = gb_model(x_batch, target_batch)
+        if normalize:
+            gb_model_out = XILUtils.minmax_normalize_tensor(gb_model_out)
 
+        return gb_model_out
+
+    @staticmethod
+    def guided_gradcam_explain(x_batch, target_batch, model, device, target_layers,
+                               aug_smooth=False, eigen_smooth=False,
+                               target_classification_criterium=None,
+                               normalize=True):
         model.eval()
 
-        grayscale_cam = XILUtils.gradcam_explain(x_batch, model, device, target_layers)
-        gb_model_out = XILUtils.minmax_normalize_tensor(gb_model(x_batch, target_batch))[:, 0]
+        grayscale_cam = XILUtils.gradcam_explain(x_batch, model, device, target_layers,
+                                                 aug_smooth=aug_smooth,
+                                                 eigen_smooth=eigen_smooth,
+                                                 target_classification_criterium=target_classification_criterium)
+        gb_model_out = XILUtils.guided_backprop_explain(x_batch, target_batch, model, device, normalize=normalize)
         # !!! Normalizing output of guided backpropagation is having a positive effect on visualising
         grayscale_cam *= gb_model_out
 
