@@ -1,11 +1,11 @@
 from pathlib import Path
 import torch
 
-from src.rrr_dataset import RRRDataset
-from src.utils import XILUtils
-from src.experiments.cnn import CNNTwoConv
+from ..rrr_dataset import RRRDataset
+from ..utils import XILUtils
+from .cnn import CNNTwoConv
 import itertools
-from src.caipi import RandomStrategy, SubstitutionStrategy, AlternativeValueStrategy, MarginalizedSubstitutionStrategy, \
+from ..caipi import RandomStrategy, SubstitutionStrategy, AlternativeValueStrategy, MarginalizedSubstitutionStrategy, \
     to_counter_examples_2d_pic
 from torch.optim import Adam, SGD
 import torch.nn.functional as F

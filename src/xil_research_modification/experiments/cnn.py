@@ -1,5 +1,5 @@
 from torch.nn import Module, Sequential, Conv2d, ReLU, MaxPool2d, Flatten, Linear, Softmax
-from src.masked_dropout import MaskedDropout, ScaleLessDropout
+from ..masked_dropout import MaskedDropout, ScaleLessDropout
 
 
 class CNNTwoConv(Module):
@@ -21,7 +21,6 @@ class CNNTwoConv(Module):
             # maxpooling reduces dimensionality by half, 7 = 28 (image_size) / (2 * 2)
             ReLU(),
             Linear(in_features=128, out_features=num_classes, device=device),
-            Softmax(dim=1)
         )
 
     def forward(self, x):
@@ -66,7 +65,6 @@ class CNNTwoConvWithDropout(CNNTwoConv):
             # maxpooling reduces dimensionality by half, 7 = 28 (image_size) / (2 * 2)
             ReLU(),
             Linear(in_features=128, out_features=num_classes, device=device),
-            Softmax(dim=1)
         )
 
     def forward(self, x, explanation_mask=None):
