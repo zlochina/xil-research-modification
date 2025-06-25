@@ -165,7 +165,7 @@ class XILUtils:
             target = targets[index]
 
             # Get prediction
-            prediction_probs = model(example.unsqueeze(0).to(device))
+            prediction_probs = F.softmax(model(example.unsqueeze(0).to(device)), dim=-1)
             prediction = torch.nn.functional.one_hot(prediction_probs.argmax(),
                                                      num_classes=prediction_probs.shape[-1])
             certainty = prediction_probs.max().item() * 100
