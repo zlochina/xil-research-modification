@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from torch.utils.data import DataLoader
 from pytorch_grad_cam import GradCAM, GuidedBackpropReLUModel as nativeGuidedBackpropReLUModel
 from pytorch_grad_cam.utils.image import show_cam_on_image
@@ -138,6 +139,15 @@ class XILUtils:
         certainties = []
         is_correct = []
 
+        # TODO remove because this codeblock is a special case in a universal function
+        if kwargs.get("correspond_to_targets"):
+            if targets.ndim == 2:
+                target_classification_criterium = [ClassifierOutputTarget(i.argmax(dim=-1)) for i in targets]
+            else:
+                target_classification_criterium = [ClassifierOutputTarget(i) for i in targets]
+            kwargs["target_classification_criterium"] = target_classification_criterium
+        # TODO
+
         if guided_gradcam:
             grayscale_maps = XILUtils.guided_gradcam_explain(
                 examples, targets, model, device, target_layers,
@@ -251,10 +261,10 @@ class XILUtils:
 
     @staticmethod
     def apply_and_show_gradcam(model, target_layers, dataset, labels, plt, device=torch.device('cpu'),
-                               shuffle_ds=False, batch_num=0, batch_size=5, guided_gradcam=False):
+                               shuffle_ds=False, batch_num=0, batch_size=5, guided_gradcam=False, **kwargs):
         # Calculate GradCAM
         aggregated_gradcam_dict = XILUtils.apply_gradcam(model, target_layers, dataset, device=device, batch_num=batch_num,
-                               batch_size=batch_size, shuffle_ds=shuffle_ds, guided_gradcam=guided_gradcam)
+                               batch_size=batch_size, shuffle_ds=shuffle_ds, guided_gradcam=guided_gradcam, **kwargs)
 
         XILUtils.plot_grad_cam(
             aggregated_gradcam_dict,
