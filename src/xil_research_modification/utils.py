@@ -7,8 +7,10 @@ from pytorch_grad_cam import GradCAM, GuidedBackpropReLUModel as nativeGuidedBac
 from pytorch_grad_cam.utils.image import show_cam_on_image
 import numpy as np
 from . import guided_backprop
+from sklearn.metrics import accuracy_score, cohen_kappa_score
 
 class XILUtils:
+    standard_aggregation = lambda input_tensor: torch.argmax(input_tensor, dim=-1)
     @staticmethod
     def define_device() -> str:
         """
@@ -56,24 +58,60 @@ class XILUtils:
                 print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
 
     @staticmethod
-    def rrr_test_loop(model: nn.Module, dataloader: DataLoader, loss_fn: nn.Module, num_classes: int, device: str):
+    def rrr_test_loop(model, dataloader, loss_fn, device,
+                  prediction_agg=standard_aggregation,
+                  target_agg=standard_aggregation,
+                  metric='accuracy'):
+        # Prediction and Target aggregations should be such that there is a single number for correctness of the item
         model.eval()
-        size = len(dataloader.dataset)
+        all_preds = []
+        all_targets = []
+        total_loss = 0.0
         num_batches = len(dataloader)
-        test_loss, correct = 0, 0
 
-        # with torch.no_grad(): prevents calculating gradients, which does not suit our rrr loss function
-        for X, y, A in dataloader:
-            # move X, y to device
-            X, y, A = X.to(device), y.to(device), A.to(device)
-            pred = model(X)
-            test_loss += loss_fn(pred, y, A).item()
-            correct += (F.one_hot(pred.argmax(1), num_classes=num_classes) == y).type(
-                torch.float).sum().item() / num_classes
+        with torch.no_grad():
+            for X, y, A in dataloader:
+                X, y, A = X.to(device), y.to(device), A.to(device)
+                logits = model(X)
+                total_loss += loss_fn(logits, y, A).item()
 
-        test_loss /= num_batches
-        correct /= size
-        print(f"Test Error: \n Accuracy: {(100 * correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+                pred_labels = prediction_agg(logits)
+                true_labels = target_agg(y)
+
+                all_preds.append(pred_labels)
+                all_targets.append(true_labels)
+
+        all_preds = torch.cat(all_preds).cpu().numpy()
+        all_targets = torch.cat(all_targets).cpu().numpy()
+        avg_loss = total_loss / num_batches
+
+        # Define supported metrics
+        metric_fns = {
+            'accuracy': accuracy_score,
+            'kappa': cohen_kappa_score,
+        }
+
+        # Normalize metric input
+        if metric == 'all':
+            selected_metrics = list(metric_fns.keys())
+        elif isinstance(metric, str):
+            selected_metrics = [metric]
+        elif isinstance(metric, list):
+            selected_metrics = metric
+        else:
+            raise ValueError("metric must be a string, list of strings, or 'all'")
+
+        results = {}
+        print("Test Error:")
+        for m in selected_metrics:
+            if m not in metric_fns:
+                raise ValueError(f"Unsupported metric: {m}")
+            score = metric_fns[m](all_targets, all_preds)
+            results[m] = score
+            print(f" {m.title()}: {score * 100:>0.1f}%")
+
+        print(f" Avg loss: {avg_loss:.6f}\n")
+        return results, avg_loss
 
     @staticmethod
     def train_loop(dataloader: torch.utils.data.DataLoader, model: torch.nn.Module, loss_fn, optimizer, device: str):
@@ -81,6 +119,7 @@ class XILUtils:
         size = len(dataloader.dataset)
         batch_size = dataloader.batch_size
 
+        interval = size // 10
         model.train()
         for batch_i, (X, y) in enumerate(dataloader):
             # move X and y to device
@@ -94,32 +133,65 @@ class XILUtils:
             optimizer.step()
             optimizer.zero_grad()
 
-            if batch_i % 100 == 0:
+            if (batch_i * batch_size) % interval < batch_size:
                 loss, current = loss.item(), batch_i * batch_size + len(X)
                 print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
 
-    standard_aggregation = lambda input_tensor: torch.argmax(input_tensor, dim=-1)
     @staticmethod
-    def test_loop(dataloader, model, loss_fn, device, prediction_agg=standard_aggregation, target_agg=standard_aggregation):
+    def test_loop(dataloader, model, loss_fn, device,
+                  prediction_agg=standard_aggregation,
+                  target_agg=standard_aggregation,
+                  metric='accuracy'):
         # Prediction and Target aggregations should be such that there is a single number for correctness of the item
         model.eval()
-        size = len(dataloader.dataset)
+        all_preds = []
+        all_targets = []
+        total_loss = 0.0
         num_batches = len(dataloader)
-        test_loss, correct = 0, 0
 
         with torch.no_grad():
             for X, y in dataloader:
-                # move X, y to device
                 X, y = X.to(device), y.to(device)
-                pred = model(X)
-                test_loss += loss_fn(pred, y).item()
-                correct += (prediction_agg(pred) == target_agg(y)).type(torch.float).sum().item()
+                logits = model(X)
+                total_loss += loss_fn(logits, y).item()
 
-            test_loss /= num_batches
-            correct /= size
-            print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+                pred_labels = prediction_agg(logits)
+                true_labels = target_agg(y)
 
+                all_preds.append(pred_labels)
+                all_targets.append(true_labels)
 
+        all_preds = torch.cat(all_preds).cpu().numpy()
+        all_targets = torch.cat(all_targets).cpu().numpy()
+        avg_loss = total_loss / num_batches
+
+        # Define supported metrics
+        metric_fns = {
+            'accuracy': accuracy_score,
+            'kappa': cohen_kappa_score,
+        }
+
+        # Normalize metric input
+        if metric == 'all':
+            selected_metrics = list(metric_fns.keys())
+        elif isinstance(metric, str):
+            selected_metrics = [metric]
+        elif isinstance(metric, list):
+            selected_metrics = metric
+        else:
+            raise ValueError("metric must be a string, list of strings, or 'all'")
+
+        results = {}
+        print("Test Error:")
+        for m in selected_metrics:
+            if m not in metric_fns:
+                raise ValueError(f"Unsupported metric: {m}")
+            score = metric_fns[m](all_targets, all_preds)
+            results[m] = score
+            print(f" {m.title()}: {score * 100:>0.1f}%")
+
+        print(f" Avg loss: {avg_loss:.6f}\n")
+        return results, avg_loss
     # Explainers
 
     @staticmethod
