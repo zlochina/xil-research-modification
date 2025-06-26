@@ -118,6 +118,7 @@ class XILUtils:
 
         size = len(dataloader.dataset)
         batch_size = dataloader.batch_size
+        total_loss = 0
 
         interval = size // 10
         model.train()
@@ -133,9 +134,13 @@ class XILUtils:
             optimizer.step()
             optimizer.zero_grad()
 
+            total_loss += loss.item()
+
             if (batch_i * batch_size) % interval < batch_size:
                 loss, current = loss.item(), batch_i * batch_size + len(X)
                 print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
+
+        return total_loss / len(dataloader)
 
     @staticmethod
     def test_loop(dataloader, model, loss_fn, device,

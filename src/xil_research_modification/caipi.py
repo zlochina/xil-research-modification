@@ -156,7 +156,7 @@ class SubstitutionStrategy(Strategy):
             raise ValueError("Target is not provided.")
         # Step 1: Match target to self._targets
         # Find indices where target matches self._targets
-        target_indices = torch.where((self._targets == target).all(dim=1))[0]
+        target_indices = torch.where((self._targets == target).all(dim=1))[0] # TODO: could raise an exception if target shape is one-dimensional
 
         # Select corresponding inputs for the matched targets
         matched_inputs = self._inputs[target_indices]
@@ -240,7 +240,7 @@ def to_counter_examples_2d_pic(strategy: Strategy, x_tensor: torch.Tensor, expla
     batch_size, channels, height, width = x_tensor.shape
 
     # apply counter examples strategy
-    counter_examples = strategy(x_tensor, explanation, ce_num, **kwargs) # returns tensor of shape (batch_size, ce_num, features)
+    counter_examples = strategy(x_tensor, explanation, ce_num, **kwargs) # returns tensor of shape (batch_size, ce_num, channels, height, width)
     assert list(counter_examples.shape) == [batch_size, ce_num, channels, height, width], \
         f"Counter examples shape {counter_examples.shape} should be in form of (batch_size, ce_num, channels, height, width), but is not."
 
