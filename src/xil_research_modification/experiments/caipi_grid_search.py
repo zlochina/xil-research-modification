@@ -580,7 +580,7 @@ if __name__ == "__main__":
     # Print priority system warnings
     config_manager.print_priority_warnings(final_args)
 
-    current_path = final_args.current_path
+    current_path = final_args.current_path if isinstance(final_args.current_path, Path) else Path(final_args.current_path)
 
     # Load the dataset
     dataset = torch.load(current_path / "08_MNIST_output/misleading_dataset.pth", weights_only=False)
@@ -604,7 +604,8 @@ if __name__ == "__main__":
 
     loss = torch.nn.CrossEntropyLoss()
     threshold = final_args.threshold
-    output_file = final_args.output_filename
+    output_file = final_args.output_filename\
+        if isinstance(final_args.output_filename, Path) else Path(final_args.output_filename)
     optimizer = final_args.optimizer
 
     grid_search(
