@@ -286,17 +286,17 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
     for ce_num, strategy, num_of_instances, lr in combinations:
         grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, misleading_binary_masks,
                               misleading_data, misleading_labels, model_confounded, num_of_instances, optim,
-                              evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records)
+                              evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records, specific_case)
 
 
 def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, misleading_binary_masks,
                           misleading_data, misleading_labels, model_confounded, num_of_instances, optim,
-                          evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records):
+                          evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records, specific_case):
     original_data_size = misleading_data.size(0)
 
     combination_name = f"ce_num_{ce_num}__lr_{lr}__strategy__{str(strategy)}"
     writer = SummaryWriter(
-        log_dir=f"runs/caipi_experiment_{optim}_{original_data_size}__num_of_instances_{num_of_instances}{'_ground_zero' if from_ground_zero else ''}/{combination_name}")
+        log_dir=f"runs/caipi_experiment_{specific_case}__num_of_instances_{num_of_instances}{'_ground_zero' if from_ground_zero else ''}/{combination_name}")
 
     used_indices = set()
     def get_informative_instance(targets, num_of_instances, dataset_size):
