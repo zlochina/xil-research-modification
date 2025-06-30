@@ -1,4 +1,13 @@
-poetry run python3 caipi_grid_search.py --threshold 0.95 \
- --output_filename caipi_experiment/caipi_grid_search_1run.csv \
- --current_path . --optimizer sgd --train_from_ground_zero \
- --evaluate_every_nth_epoch 10 --train_dataset_size 200
+#!/bin/bash
+
+echo "running caipi_grid_search.py..."
+
+if [ -z "$1" ]; then
+  # No argument passed
+  poetry run python3 -m xil_research_modification.experiments.caipi_grid_search \
+    --config xil_research_modification/experiments/config.yaml
+else
+  # Argument passed
+  poetry run python3 -m xil_research_modification.experiments.caipi_grid_search \
+    --config xil_research_modification/experiments/config.yaml --config_case "$1"
+fi

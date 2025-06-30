@@ -1,0 +1,74 @@
+# Example configuration file for grid search
+# Supports both YAML and JSON formats
+
+general:
+  # Program arguments that apply by default
+  program_args:
+    threshold: 0.95
+    optimizer: "sgd"
+    evaluate_every_nth_epoch: 10
+    train_from_ground_zero: true
+    train_dataset_size: 1000
+    output_filename: "caipi_expr/default_experiment.csv"
+
+  # Grid search hyperparameters (default values)
+  ce_num: [1, 2, 3, 4, 5]
+  strategy: ["substitution", "marginalized_substitution", "alternative_value"]
+  num_of_instances: [5]
+  lr: [1e-2, 1e-3, 1e-4]
+
+specific:
+  # Quick testing configuration
+  quick_test:
+    default: false  # Whether this is a default specific case
+    program_args:
+      threshold: 0.85
+      train_dataset_size: 500
+      output_filename: "caipi_expr/quick_test.csv"
+      train_from_ground_zero: False
+
+    # Override hyperparameters for quick testing
+    ce_num: [2]
+    strategy: ["substitution"]
+    num_of_instances: [3]
+    lr: [1e-2, 1e-3]
+
+  # Comprehensive search configuration
+  comprehensive:
+    default: false
+    program_args:
+      threshold: 0.95
+      optimizer: "sgd"
+      train_dataset_size: -1  # Use full dataset
+      output_filename: "caipi_expr/comprehensive_search.csv"
+
+    # More extensive hyperparameter search
+    ce_num: [1, 2, 3, 4, 5]
+    strategy: ["random", "substitution", "marginalized_substitution", "alternative_value"]
+    num_of_instances: [1, 3, 5, 10]
+    lr: [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
+
+  # High learning rate experiment
+  high_lr_experiment:
+    default: false
+    program_args:
+      threshold: 0.92
+      optimizer: "sgd"
+      output_filename: "caipi_expr/high_lr_experiment.csv"
+
+    # Only override learning rates, inherit other parameters from general
+    lr: [5e-1, 1e-1, 5e-2]
+
+  # Strategy comparison
+  strategy_comparison:
+    default: false
+    program_args:
+      threshold: 0.90
+      output_filename: "caipi_expr/strategy_comparison.csv"
+
+    # Fixed other params, vary only strategy
+    ce_num: [2]
+    num_of_instances: [3]
+    lr: [1e-2]
+    # All strategies will be compared
+    strategy: ["random", "substitution", "marginalized_substitution", "alternative_value"]

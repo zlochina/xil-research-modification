@@ -17,6 +17,7 @@ grad-cam = "^1.5.4"
 lovely-tensors = "^0.1.18"
 progressbar2 = "^4.5.0"
 tensorboard = "^2.19.0"
+pyyaml = "^6.0.2"
 
 
 [build-system]

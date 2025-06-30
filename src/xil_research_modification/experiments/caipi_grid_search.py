@@ -1,5 +1,9 @@
 from pathlib import Path
 import torch
+import yaml
+import json
+from typing import Dict, Any, Union
+import warnings
 
 from ..rrr_dataset import RRRDataset
 from ..utils import XILUtils
@@ -30,6 +34,103 @@ device = XILUtils.define_device()
 batch_size = 64
 num_classes = 2
 label_translation = dict(zero=torch.tensor((1, 0), device=device), eight=torch.tensor((0, 1), device=device))
+
+
+class ConfigManager:
+    """Manages configuration loading and parameter resolution with priority system."""
+
+    def __init__(self, config_path: Path = None, config_case: str = None):
+        self.config = {}
+        self.config_case = config_case
+        if config_path and config_path.exists():
+            self.load_config(config_path)
+
+    def load_config(self, config_path: Path):
+        """Load configuration from YAML or JSON file."""
+        try:
+            with open(config_path, 'r') as f:
+                if config_path.suffix.lower() in ['.yaml', '.yml']:
+                    self.config = yaml.safe_load(f)
+                elif config_path.suffix.lower() == '.json':
+                    self.config = json.load(f)
+                else:
+                    raise ValueError(f"Unsupported config file format: {config_path.suffix}")
+        except Exception as e:
+            warnings.warn(f"Failed to load config file {config_path}: {e}")
+            self.config = {}
+
+    def get_parameter(self, param_name: str, specific_case: str = None, default_value: Any = None):
+        """
+        Get parameter value with priority system:
+        1. Specific case parameters
+        2. General parameters
+        3. Default value
+        4. Raise error if no value found and no default
+        """
+        # Check specific case first
+        if specific_case and 'specific' in self.config:
+            specific_config = self.config['specific'].get(specific_case, {})
+            if param_name in specific_config:
+                return specific_config[param_name]
+
+        # Check general parameters
+        if 'general' in self.config and param_name in self.config['general']:
+            return self.config['general'][param_name]
+
+        # Use default if provided
+        if default_value is not None:
+            return default_value
+
+        # Raise error if no value found
+        raise ValueError(f"Parameter '{param_name}' not found in config and no default provided")
+
+    def get_program_args_from_config(self) -> Dict[str, Any]:
+        """Extract program arguments from config."""
+        program_args = {}
+
+        # Get from general config
+        if 'general' in self.config and 'program_args' in self.config['general']:
+            program_args.update(self.config['general']['program_args'])
+
+        # Get from specific configs (if any default specific case is defined)
+        if 'specific' in self.config:
+            if self.config_case in self.config['specific']:
+                case_config = self.config['specific'][self.config_case]
+                if 'program_args' in case_config:
+                    program_args.update(case_config['program_args'])
+
+        return program_args
+
+    def print_priority_warnings(self, args: argparse.Namespace):
+        """Print warnings about parameter priority system."""
+        print("=" * 60)
+        print("CONFIGURATION PRIORITY SYSTEM")
+        print("=" * 60)
+        print("Priority order (highest to lowest):")
+        print("1. Command line arguments")
+        print("2. Config file specific parameters")
+        print("3. Config file general parameters")
+        print("4. Default values")
+        print()
+
+        config_args = self.get_program_args_from_config()
+        overridden_params = []
+
+        for arg_name, arg_value in vars(args).items():
+            if arg_name in config_args:
+                config_value = config_args[arg_name]
+                if arg_value != config_value:
+                    overridden_params.append((arg_name, config_value, arg_value))
+
+        if overridden_params:
+            print("OVERRIDDEN PARAMETERS:")
+            for param_name, config_val, arg_val in overridden_params:
+                print(f"  {param_name}: config={config_val} -> args={arg_val}")
+        else:
+            print("No parameters overridden by command line arguments.")
+        print("=" * 60)
+        print()
+
 
 def save_info_to_csv(filename: Path, info: pd.DataFrame):
     # Ensure the parent directory exists
@@ -64,22 +165,69 @@ def train_evaluate(model, train_dataloader, test_dataloader, optimizer, loss_fn,
     return df
 
 
-def define_paramaters(inputs, targets):
-    # Initialise strategies
+def define_parameters(inputs, targets, config_manager: ConfigManager, specific_case: str = None):
+    """Define parameters using config manager with priority system."""
 
+    # Initialize strategies
     random_strategy = RandomStrategy(0., 1., torch.float32)
     substitution_strategy = SubstitutionStrategy(inputs, targets)
     marginalized_substitution_strategy = MarginalizedSubstitutionStrategy(inputs, targets)
     alternative_value_strategy = AlternativeValueStrategy(torch.zeros(image_shape, device=device), image_shape)
-    parameters_grid = {
-        "ce_num": [2],
-        # "ce_num": [1, 2, 3, 4, 5],
-        "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy],
-        # "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy, random_strategy],
-        "num_of_instances": [3],
-        "lr": [1e-1, 1e-2, 1e-3],
+
+    # Strategy mapping for config file
+    strategy_mapping = {
+        'random': random_strategy,
+        'substitution': substitution_strategy,
+        'marginalized_substitution': marginalized_substitution_strategy,
+        'alternative_value': alternative_value_strategy
     }
-    return parameters_grid
+
+    # Get parameters from config with fallback to defaults
+    try:
+        ce_num = config_manager.get_parameter('ce_num', specific_case, [2])
+        strategy_names = config_manager.get_parameter('strategy', specific_case,
+                                                      ['substitution', 'marginalized_substitution',
+                                                       'alternative_value'])
+        num_of_instances = config_manager.get_parameter('num_of_instances', specific_case, [3])
+        lr = config_manager.get_parameter('lr', specific_case, [1e-1, 1e-2, 1e-3])
+
+        # Convert strategy names to strategy objects
+        strategies = []
+        for strategy_name in strategy_names:
+            if strategy_name in strategy_mapping:
+                strategies.append(strategy_mapping[strategy_name])
+            else:
+                available_strategies = list(strategy_mapping.keys())
+                raise ValueError(f"Unknown strategy '{strategy_name}'. Available strategies: {available_strategies}")
+
+        parameters_grid = {
+            "ce_num": ce_num if isinstance(ce_num, list) else [ce_num],
+            "strategy": strategies,
+            "num_of_instances": num_of_instances if isinstance(num_of_instances, list) else [num_of_instances],
+            "lr": lr if isinstance(lr, list) else [lr],
+        }
+
+        print(f"Loaded parameters from config:")
+        print(f"  ce_num: {parameters_grid['ce_num']}")
+        print(f"  strategy: {[str(s) for s in parameters_grid['strategy']]}")
+        print(f"  num_of_instances: {parameters_grid['num_of_instances']}")
+        print(f"  lr: {parameters_grid['lr']}")
+        print()
+
+        return parameters_grid
+
+    except Exception as e:
+        print(f"Error loading parameters from config: {e}")
+        print("Falling back to hardcoded defaults...")
+
+        # Fallback to original hardcoded parameters
+        parameters_grid = {
+            "ce_num": [2],
+            "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy],
+            "num_of_instances": [3],
+            "lr": [1e-1, 1e-2, 1e-3],
+        }
+        return parameters_grid
 
 def has_significant_improvement(best_loss, current_loss, relative_eps=1e-3):
     """
@@ -123,8 +271,9 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
     return metrics, avg_loss
 
 def grid_search(filename: Path, misleading_ds_train, model_confounded, test_dataloader, device, loss, threshold, optim,
-                evaluate_every_nth_epoch=16, from_ground_zero=False):
-    parameters_grid = define_paramaters(misleading_ds_train.data.to(device), misleading_ds_train.labels.to(device))
+                evaluate_every_nth_epoch=16, from_ground_zero=False, config_manager: ConfigManager = None, specific_case: str = None):
+    parameters_grid = define_parameters(misleading_ds_train.data.to(device), misleading_ds_train.labels.to(device),
+                                      config_manager or ConfigManager(), specific_case)
     combinations = list(itertools.product(*parameters_grid.values()))
 
     misleading_data = misleading_ds_train.data.to(device)
@@ -298,20 +447,82 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     return records
 
 
+def merge_config_with_args(args: argparse.Namespace, config_manager: ConfigManager) -> argparse.Namespace:
+    """Merge config parameters with command line arguments, giving priority to command line."""
+    config_args = config_manager.get_program_args_from_config()
+
+    # Create a new namespace with config defaults
+    merged_args = argparse.Namespace()
+
+    # First, set config values
+    for key, value in config_args.items():
+        setattr(merged_args, key, value)
+
+    # Then, override with command line arguments (which have priority)
+    for key, value in vars(args).items():
+        if not value is None:
+            setattr(merged_args, key, value)
+
+    return merged_args
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Run grid search with counterexample injection and save results to CSV"
+        description="Run grid search with counterexample injection and save results to CSV",
+        epilog = """
+    Usage Examples:
+
+      Basic usage without config:
+        %(prog)s --threshold 0.95 --optimizer adam
+
+      Use config file with general parameters:
+        %(prog)s --config config.yaml
+
+      Use specific configuration case:
+        %(prog)s --config config.yaml --config_case quick_test
+
+      Override config parameters with command line (highest priority):
+        %(prog)s --config config.yaml --config_case comprehensive --threshold 0.99 --optimizer sgd
+
+      Quick test run:
+        %(prog)s --config config.yaml --config_case quick_test --train_dataset_size 100
+
+      Full comprehensive search:
+        %(prog)s --config config.yaml --config_case comprehensive --train_dataset_size -1
+
+      Custom output location:
+        %(prog)s --config config.yaml --output_filename experiments/my_experiment.csv
+
+    Priority System (highest to lowest):
+      1. Command line arguments
+      2. Config file specific parameters (--config_case)
+      3. Config file general parameters
+      4. Default values
+
+    Config File Structure:
+      general:          # Default parameters for all experiments
+        program_args:   # Program arguments (threshold, optimizer, etc.)
+        ce_num: [...]   # Grid search hyperparameters
+        strategy: [...]
+        ...
+      specific:         # Named experiment configurations
+        quick_test:     # Specific case name
+          program_args: # Override program arguments
+          ce_num: [...] # Override hyperparameters
+          ...
+            """,
+    formatter_class = argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
         "--threshold", "-t",
         type=float,
-        default=0.95,
+        default=None,
         help="Accuracy threshold at which to stop each run"
     )
     parser.add_argument(
         "--output_filename", "-o",
         type=Path,
-        default=Path("caipi_expr/caipi_grid_search_1run.csv"),
+        default=None,
         help="Path to the CSV file where results will be written"
     )
     parser.add_argument(
@@ -323,7 +534,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--optimizer",
         type=str,
-        default="sgd",
+        default=None,
         choices=["adam", "sgd"],
         help="Optimizer to use for training the model"
     )
@@ -331,28 +542,49 @@ if __name__ == "__main__":
         "--train_from_ground_zero",
         action="store_true",
         help="If set, train from ground zero instead of using pretrained model with counterexmples from previous epochs",
-        default=False
+        default=None
     )
     parser.add_argument(
         "--evaluate_every_nth_epoch",
         type=int,
-        default=10,
+        default=None,
         help="Number of epochs without improvement before stopping training"
     )
     parser.add_argument(
         "--train_dataset_size",
         type=int,
-        default=-1,
+        default=None,
         help="Size of train dataset, Default value set to -1 corresponding to the whole dataset"
+    )
+    parser.add_argument(
+        "--config", "-c",
+        type=Path,
+        default=None,
+        help="Path to configuration file (YAML or JSON format)"
+    )
+    parser.add_argument(
+        "--config_case",
+        type=str,
+        default=None,
+        help="Specific configuration case to use from config file"
     )
 
     args = parser.parse_args()
 
-    current_path = args.current_path
+    # Initialize config manager
+    config_manager = ConfigManager(args.config, args.config_case) if args.config else ConfigManager()
+
+    # Merge config with args (args have priority)
+    final_args = merge_config_with_args(args, config_manager)
+
+    # Print priority system warnings
+    config_manager.print_priority_warnings(final_args)
+
+    current_path = final_args.current_path
 
     # Load the dataset
-    dataset = torch.load(current_path / "08_MNIST_output/misleading_dataset.pth")
-    ds_size = args.train_dataset_size
+    dataset = torch.load(current_path / "08_MNIST_output/misleading_dataset.pth", weights_only=False)
+    ds_size = final_args.train_dataset_size
     assert ds_size < len(dataset["inputs"]), f"Dataset size: {ds_size} is set bigger than the actual dataset size."
     misleading_ds_train = RRRDataset(
         dataset["inputs"][:ds_size],
@@ -362,18 +594,18 @@ if __name__ == "__main__":
 
     model_confounded = CNNTwoConv(num_classes, device)
     model_confounded.load_state_dict(
-        torch.load(current_path / "08_MNIST_output/model_confounded.pth")
+        torch.load(current_path / "08_MNIST_output/model_confounded.pth", weights_only=True)
     )
     model_confounded = model_confounded.to(device)
 
-    dataset_test = torch.load(current_path / "08_MNIST_output/test_dataset.pth")
+    dataset_test = torch.load(current_path / "08_MNIST_output/test_dataset.pth", weights_only=False)
     ds_test = TensorDataset(dataset_test["inputs"], dataset_test["targets"])
     test_dataloader = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
 
     loss = torch.nn.CrossEntropyLoss()
-    threshold = args.threshold
-    output_file = args.output_filename
-    optimizer = args.optimizer
+    threshold = final_args.threshold
+    output_file = final_args.output_filename
+    optimizer = final_args.optimizer
 
     grid_search(
         output_file,
@@ -384,6 +616,8 @@ if __name__ == "__main__":
         loss,
         threshold,
         optimizer,
-        evaluate_every_nth_epoch=args.evaluate_every_nth_epoch,
-        from_ground_zero=args.train_from_ground_zero,
+        evaluate_every_nth_epoch=final_args.evaluate_every_nth_epoch,
+        from_ground_zero=final_args.train_from_ground_zero,
+        config_manager=config_manager,
+        specific_case=final_args.config_case,
     )
