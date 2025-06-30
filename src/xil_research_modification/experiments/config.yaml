@@ -29,7 +29,7 @@ specific:
     ce_num: [1, 2, 3, 4, 5]
     strategy: ["random", "substitution", "marginalized_substitution", "alternative_value"]
     num_of_instances: [3]
-    lr: [1.e-1, 1.e-3, 1.e-4] # TODO: find out what lr are effective
+    lr: [0.04]
 
   sgd_full:
     program_args:
@@ -41,7 +41,7 @@ specific:
     ce_num: [1, 2, 3, 4, 5]
     strategy: ["substitution", "marginalized_substitution", "alternative_value"]
     num_of_instances: [3]
-    lr: [1.e-1, 1.e-3, 1.e-4] # TODO: find out what lr are effective
+    lr: [0.04]
 
   # adam configurations
   adam_200:
@@ -54,7 +54,7 @@ specific:
     ce_num: [1, 2, 3, 4, 5]
     strategy: ["random", "substitution", "marginalized_substitution", "alternative_value"]
     num_of_instances: [3]
-    lr: [1.e-2, 1.e-3, 1.e-4] # TODO: find out what lr are effective
+    lr: [0.003]
 
   adam_full:
     program_args:
@@ -66,7 +66,7 @@ specific:
     ce_num: [1, 2, 3, 4, 5]
     strategy: ["substitution", "marginalized_substitution", "alternative_value"]
     num_of_instances: [3]
-    lr: [1.e-2, 1.e-3, 1.e-4] # TODO: find out what lr are effective
+    lr: [0.003]
 
   # Learning rates configurations
   sgd_check_rates:
