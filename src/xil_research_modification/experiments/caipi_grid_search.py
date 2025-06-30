@@ -72,10 +72,11 @@ def define_paramaters(inputs, targets):
     marginalized_substitution_strategy = MarginalizedSubstitutionStrategy(inputs, targets)
     alternative_value_strategy = AlternativeValueStrategy(torch.zeros(image_shape, device=device), image_shape)
     parameters_grid = {
-        "ce_num": [1, 2, 3, 4, 5],
+        "ce_num": [2],
+        # "ce_num": [1, 2, 3, 4, 5],
         "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy],
         # "strategy": [substitution_strategy, marginalized_substitution_strategy, alternative_value_strategy, random_strategy],
-        "num_of_instances": [5],
+        "num_of_instances": [3],
         "lr": [1e-1, 1e-2, 1e-3],
     }
     return parameters_grid
@@ -132,20 +133,22 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
 
 
 
+    records = list()
     for ce_num, strategy, num_of_instances, lr in combinations:
         grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, misleading_binary_masks,
                               misleading_data, misleading_labels, model_confounded, num_of_instances, optim,
-                              evaluate_every_nth_epoch, strategy, test_dataloader, threshold)
+                              evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records)
 
 
 def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, misleading_binary_masks,
                           misleading_data, misleading_labels, model_confounded, num_of_instances, optim,
-                          evaluate_every_nth_epoch, strategy, test_dataloader, threshold):
+                          evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records):
+    original_data_size = misleading_data.size(0)
 
-    combination_name = f"ce_num_{ce_num}__lr_{lr}__num_of_instances_{num_of_instances}__strategy__{str(strategy)}{'ground_zero' if from_ground_zero else ''}"
-    writer = SummaryWriter(log_dir=f"runs/caipi_experiment/{combination_name}")
+    combination_name = f"ce_num_{ce_num}__lr_{lr}__strategy__{str(strategy)}"
+    writer = SummaryWriter(
+        log_dir=f"runs/caipi_experiment_{optim}_{original_data_size}__num_of_instances_{num_of_instances}{'_ground_zero' if from_ground_zero else ''}/{combination_name}")
 
-    records = []
     used_indices = set()
     def get_informative_instance(targets, num_of_instances, dataset_size):
         # just take some random eight
@@ -163,7 +166,6 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
 
         return indices
 
-    original_data_size = misleading_data.size(0)
 
     print(f"Checking out {ce_num=}, {strategy=}, {lr=}, {num_of_instances=}")
 
@@ -179,10 +181,10 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
 
     metrics_dict, avg_loss = XILUtils.test_loop(test_dataloader, grid_model, loss, device, metric='all')
     accuracy = metrics_dict["accuracy"]
-    kappa = metrics_dict["kappa"]
-    writer.add_scalar("Accuracy/val", accuracy, 1)
-    writer.add_scalar("Cohen Kappa/val", kappa, 1)
-    writer.add_scalar("Average Loss/val", avg_loss, 1)
+    cohen_kappa = metrics_dict["kappa"]
+    writer.add_scalar("Accuracy/val", accuracy, 0)
+    writer.add_scalar("Cohen Kappa/val", cohen_kappa, 0)
+    writer.add_scalar("Average Loss/val", avg_loss, 0)
     print(f"Initial accuracy: {100 * accuracy:.2f}%")
 
     current_data = misleading_data.clone()
@@ -190,6 +192,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     current_binary_masks = misleading_binary_masks.clone()
 
     counterexamples_epoch = 1
+    duplicate_informative_instances_iteration = 0
 
     with progressbar.ProgressBar(widgets=widgets, max_value=1e+4) as bar:
         # Update ProgressBar
@@ -199,21 +202,21 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
             # Step 1: Get Informative Instances
             indices = get_informative_instance(current_labels[:original_data_size], num_of_instances,
                                                original_data_size)
+            if len(indices) == 0:
+                print(f"\nAll original instances were used"
+                      f" {duplicate_informative_instances_iteration + 1} times for creation of counterexamples."
+                      f" New iteration...\n")
+                duplicate_informative_instances_iteration += 1
+                used_indices.clear()
+                continue
             informative_instances = current_data[indices]
 
-            # Step 2: Get Model Prediction
-            grid_model.eval()
-            with torch.no_grad():
-                prediction = grid_model(informative_instances)
-
-            # TODO: special case. I've got no idea what to do, when prediction is wrong
-            # get indices of NOT the special case (exclusion)
-            special_case_indices = torch.where(prediction.argmax(dim=1) == current_labels[indices].argmax(dim=1))[0]
-            if len(special_case_indices) != len(indices):
-                # update prediction, informative_instances and indices
-                informative_instances = informative_instances[special_case_indices]
-                indices = indices[special_case_indices]
-                prediction = prediction[special_case_indices]
+            # # Step 2: Get Model Prediction
+            # grid_model.eval()
+            # with torch.no_grad():
+            #     prediction = grid_model(informative_instances)
+            # TODO: remove as it is not used, although step is described by caipi framework,
+            #   where prediction is used to present to the explainer.
 
             # Step 3: Get Informative Targets and Corresponding Binary Masks
             informative_targets = current_labels[indices]
@@ -249,15 +252,16 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
             accuracy = metrics_dict["accuracy"]
             cohen_kappa = metrics_dict["kappa"]
 
-            writer.add_scalar("Accuracy/val", accuracy, counterexamples_epoch)
-            writer.add_scalar("Cohen Kappa/val", kappa, counterexamples_epoch)
-            writer.add_scalar("Average Loss/val", avg_loss, counterexamples_epoch)
+            num_of_artifical_instances = len(current_labels) - original_data_size
+
+            writer.add_scalar("Accuracy/val", accuracy, num_of_artifical_instances)
+            writer.add_scalar("Cohen Kappa/val", cohen_kappa, num_of_artifical_instances)
+            writer.add_scalar("Average Loss/val", avg_loss, num_of_artifical_instances)
 
             # Update ProgressBar
             bar.update(accuracy * 1e+4)
 
             # evaluate accuracy
-            print(f"Number of artificial instances {len(current_labels) - original_data_size}.")
             records.append({
                 "ce_num": ce_num,
                 "strategy": str(strategy),
@@ -271,13 +275,14 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
                 "average_loss": float(avg_loss),
 
                 "from_ground_zero": from_ground_zero,
-                "num_of_artificial_instances": len(current_labels) - original_data_size,
+                "num_of_artificial_instances": num_of_artifical_instances,
             })
             df = pd.DataFrame(records)
             save_info_to_csv(filename, df)
             print(f"Epoch {counterexamples_epoch}: Accuracy: {100 * accuracy:.2f}%, Avg. Test Loss: {avg_loss:.4f}")
 
-            if len(current_labels) - original_data_size > 500:
+            if num_of_artifical_instances > original_data_size // 2:
+                # TODO: change only after the analysis of the results and if it shows that some model could converge
                 break
 
             # update epoch
@@ -286,8 +291,11 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     save_info_to_csv(filename, df)
     writer.add_hparams(
         {"ce_num": ce_num, "strategy": str(strategy), "lr": lr, "num_of_instances_per_epoch": num_of_instances},
-        {"accuracy": accuracy, "cohen_kappa": cohen_kappa, "average_loss": avg_loss}
+        {"accuracy": accuracy, "cohen_kappa": cohen_kappa,
+         "average_loss": avg_loss, "num_of_artificial_instances": num_of_artifical_instances}
     )
+    writer.close()
+    return records
 
 
 if __name__ == "__main__":
