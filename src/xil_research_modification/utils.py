@@ -499,7 +499,7 @@ class XILUtils:
             if model is None:
                 raise ValueError("Model must be provided for Guided GradCAM.")
 
-            guided_gradcam_explanation = XILUtils.guided_gradcam_explain(input_tensor, target_tensor, model, device, target_layers).unsqueeze(1)
+            guided_gradcam_explanation = XILUtils.guided_gradcam_explain(input_tensor, target_tensor, model, device, target_layers)
             result = guided_gradcam_explanation * binary_mask_tensor > threshold
         else:
             raise NotImplementedError(f"Explanation type '{explanation_type}' is not implemented.")
