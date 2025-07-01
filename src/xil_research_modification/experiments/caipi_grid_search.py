@@ -10,7 +10,7 @@ from ..utils import XILUtils
 from .cnn import CNNTwoConv
 import itertools
 from ..caipi import RandomStrategy, SubstitutionStrategy, AlternativeValueStrategy, MarginalizedSubstitutionStrategy, \
-    to_counter_examples_2d_pic
+    to_counter_examples_2d_pic, PseudoStrategy
 
 from torch.optim import Adam, SGD
 from torch.utils.data import DataLoader, TensorDataset
@@ -173,13 +173,15 @@ def define_parameters(inputs, targets, config_manager: ConfigManager, specific_c
     substitution_strategy = SubstitutionStrategy(inputs, targets)
     marginalized_substitution_strategy = MarginalizedSubstitutionStrategy(inputs, targets)
     alternative_value_strategy = AlternativeValueStrategy(torch.zeros(image_shape, device=device), image_shape)
+    pseudo_strategy = PseudoStrategy()
 
     # Strategy mapping for config file
     strategy_mapping = {
         'random': random_strategy,
         'substitution': substitution_strategy,
         'marginalized_substitution': marginalized_substitution_strategy,
-        'alternative_value': alternative_value_strategy
+        'alternative_value': alternative_value_strategy,
+        'pseudo': pseudo_strategy,
     }
 
     # Get parameters from config with fallback to defaults

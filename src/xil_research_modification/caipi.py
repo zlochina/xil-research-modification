@@ -206,6 +206,15 @@ class MarginalizedSubstitutionStrategy(Strategy):
         # Step 3: Replace elements marked by binary mask explanation with randomly chosen inputs
         return torch.where(explanation, random_inputs, out)
 
+class PseudoStrategy(Strategy):
+    # Strategy, which does **Nothing**, to control that the model cannot reach great test accuracy, until CEs are presented
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, x_tensor: torch.Tensor, explanation: torch.Tensor, ce_num: int, *args, **kwargs):
+        return x_tensor.clone().unsqueeze(1).repeat_interleave(ce_num, dim=1)
+
+
 # To Counter Examples
 # Notes:
 #   1. `explanation` shape is dependent on `x_tensor` shape
