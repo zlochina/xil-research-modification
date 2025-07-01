@@ -29,7 +29,7 @@ specific:
     ce_num: [1, 2, 3, 4, 5]
     strategy: ["random", "substitution", "marginalized_substitution", "alternative_value"]
     num_of_instances: [3]
-    lr: [0.004]
+    lr: [0.01]
 
   sgd_full:
     program_args:
@@ -41,7 +41,7 @@ specific:
     ce_num: [1, 2, 3, 4, 5]
     strategy: ["substitution", "marginalized_substitution", "alternative_value"]
     num_of_instances: [3]
-    lr: [0.004]
+    lr: [0.01]
 
   # adam configurations
   adam_200:
