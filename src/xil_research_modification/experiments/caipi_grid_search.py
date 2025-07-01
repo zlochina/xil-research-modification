@@ -5,6 +5,8 @@ import json
 from typing import Dict, Any, Union
 import warnings
 
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+
 from ..rrr_dataset import RRRDataset
 from ..utils import XILUtils
 from .cnn import CNNTwoConv
@@ -34,6 +36,9 @@ device = XILUtils.define_device()
 batch_size = 64
 num_classes = 2
 label_translation = dict(zero=torch.tensor((1, 0), device=device), eight=torch.tensor((0, 1), device=device))
+# TODO remove
+classifier_target_output = ClassifierOutputTarget(1)
+# TODO
 
 
 class ConfigManager:
@@ -252,7 +257,7 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
         # Step 2: Evaluate Now?
         if epoch % evaluate_every_nth_epoch == 0:
             # SubStep 1: Get Metrics data
-            metrics, avg_loss = XILUtils.test_loop(test_dataloader, model, loss_fn, device, metric='all')
+            metrics, avg_loss = XILUtils.test_loop(test_dataloader, model, loss_fn, device, metric='accuracy')
             acc = metrics["accuracy"]
 
             # SubStep 2: If We Reach Set Threshold -> We Fitted and Exit
@@ -332,9 +337,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
 
     metrics_dict, avg_loss = XILUtils.test_loop(test_dataloader, grid_model, loss, device, metric='all')
     accuracy = metrics_dict["accuracy"]
-    cohen_kappa = metrics_dict["kappa"]
     writer.add_scalar("Accuracy/val", accuracy, 0)
-    writer.add_scalar("Cohen Kappa/val", cohen_kappa, 0)
     writer.add_scalar("Average Loss/val", avg_loss, 0)
     print(f"Initial accuracy: {100 * accuracy:.2f}%")
 
@@ -344,6 +347,8 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
 
     counterexamples_epoch = 1
     duplicate_informative_instances_iteration = 0
+
+    classifier_target_output_list = [classifier_target_output for _ in range(ce_num * num_of_instances)]
 
     with progressbar.ProgressBar(widgets=widgets, max_value=1e+4) as bar:
         # Update ProgressBar
@@ -376,7 +381,9 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
             # Step 4: Query Explanation
             explanation = XILUtils.create_explanation(informative_instances, informative_binary_masks,
                                                       informative_targets, model=grid_model, device=device,
-                                                      target_layers=[grid_model[3]])
+                                                      target_layers=[grid_model[3]],
+                                                      target_classification_criterium=classifier_target_output_list)
+            # TODO: hardcoded, because our policy right now is to create CounterExamples only for eight
 
             # Step 5: Generate CounterExamples
             counterexamples = to_counter_examples_2d_pic(strategy, informative_instances, explanation, ce_num,
@@ -401,12 +408,10 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
                 grid_model.load_state_dict(model_state_dict)
 
             accuracy = metrics_dict["accuracy"]
-            cohen_kappa = metrics_dict["kappa"]
 
             num_of_artifical_instances = len(current_labels) - original_data_size
 
             writer.add_scalar("Accuracy/val", accuracy, num_of_artifical_instances)
-            writer.add_scalar("Cohen Kappa/val", cohen_kappa, num_of_artifical_instances)
             writer.add_scalar("Average Loss/val", avg_loss, num_of_artifical_instances)
 
             # Update ProgressBar
@@ -422,7 +427,6 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
                 "counterexamples_iteration": counterexamples_epoch,
 
                 "accuracy": float(accuracy),
-                "cohen_kappa": float(cohen_kappa),
                 "average_loss": float(avg_loss),
 
                 "from_ground_zero": from_ground_zero,
@@ -442,7 +446,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     save_info_to_csv(filename, df)
     writer.add_hparams(
         {"ce_num": ce_num, "strategy": str(strategy), "lr": lr, "num_of_instances_per_epoch": num_of_instances},
-        {"accuracy": accuracy, "cohen_kappa": cohen_kappa,
+        {"accuracy": accuracy,
          "average_loss": avg_loss, "num_of_artificial_instances": num_of_artifical_instances}
     )
     writer.close()

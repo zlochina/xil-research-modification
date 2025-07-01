@@ -499,7 +499,13 @@ class XILUtils:
             if model is None:
                 raise ValueError("Model must be provided for Guided GradCAM.")
 
-            guided_gradcam_explanation = XILUtils.guided_gradcam_explain(input_tensor, target_tensor, model, device, target_layers)
+            guided_gradcam_explanation = XILUtils.guided_gradcam_explain(
+                input_tensor, target_tensor, model, device, target_layers,
+                aug_smooth=kwargs.get("aug_smooth", False),
+                eigen_smooth=kwargs.get("eigen_smooth", False),
+                target_classification_criterium=kwargs.get("target_classification_criterium", None),
+                normalize=kwargs.get("normalize", True)
+            )
             result = guided_gradcam_explanation * binary_mask_tensor > threshold
         else:
             raise NotImplementedError(f"Explanation type '{explanation_type}' is not implemented.")
