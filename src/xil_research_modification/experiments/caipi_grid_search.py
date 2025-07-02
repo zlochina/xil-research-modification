@@ -21,6 +21,7 @@ import argparse
 import progressbar
 import sys
 from torch.utils.tensorboard import SummaryWriter
+import torchvision.utils as vutils
 
 widgets = [
     progressbar.Percentage(),
@@ -302,8 +303,9 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     original_data_size = misleading_data.size(0)
 
     combination_name = f"ce_num_{ce_num}__lr_{lr}__strategy__{str(strategy)}"
+    log_dir = f"runs/caipi_experiment_{specific_case}__num_of_instances_{num_of_instances}{'_ground_zero' if from_ground_zero else ''}/{combination_name}"
     writer = SummaryWriter(
-        log_dir=f"runs/caipi_experiment_{specific_case}__num_of_instances_{num_of_instances}{'_ground_zero' if from_ground_zero else ''}/{combination_name}")
+        log_dir=log_dir)
 
     used_indices = set()
     def get_informative_instance(targets, num_of_instances, dataset_size):
@@ -326,7 +328,8 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     print(f"Checking out {ce_num=}, {strategy=}, {lr=}, {num_of_instances=}")
 
     grid_model = CNNTwoConv(num_classes, device)
-    grid_model.load_state_dict(model_confounded.state_dict())
+    model_confounded_state_dict = model_confounded.state_dict()
+    grid_model.load_state_dict(model_confounded_state_dict)
 
     if optim == "adam":
         optimizer = Adam(grid_model.parameters(), lr=lr)
@@ -349,6 +352,8 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     duplicate_informative_instances_iteration = 0
 
     classifier_target_output_list = [classifier_target_output for _ in range(ce_num * num_of_instances)]
+    iteration_model_state_dict = None
+    target_layers = [grid_model[3]]
 
     with progressbar.ProgressBar(widgets=widgets, max_value=1e+4) as bar:
         # Update ProgressBar
@@ -381,7 +386,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
             # Step 4: Query Explanation
             explanation = XILUtils.create_explanation(informative_instances, informative_binary_masks,
                                                       informative_targets, model=grid_model, device=device,
-                                                      target_layers=[grid_model[3]],
+                                                      target_layers=target_layers,
                                                       target_classification_criterium=classifier_target_output_list)
             # TODO: hardcoded, because our policy right now is to create CounterExamples only for eight
 
@@ -399,13 +404,12 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
 
             # Step 7: Fit to new dataset
             grid_train_dl = DataLoader(TensorDataset(current_data, current_labels), batch_size=batch_size, shuffle=True)
-            if from_ground_zero:
-                model_state_dict = grid_model.state_dict()
             metrics_dict, avg_loss = fit_until_optimum_or_threshold(grid_model, grid_train_dl, test_dataloader, optimizer, loss,
                                                                     threshold=threshold,
                                                                     evaluate_every_nth_epoch=evaluate_every_nth_epoch)
+            iteration_model_state_dict = grid_model.state_dict()
             if from_ground_zero:
-                grid_model.load_state_dict(model_state_dict)
+                grid_model.load_state_dict(model_confounded_state_dict)
 
             accuracy = metrics_dict["accuracy"]
 
@@ -433,7 +437,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
                 "num_of_artificial_instances": num_of_artifical_instances,
             })
             df = pd.DataFrame(records)
-            save_info_to_csv(filename, df)
+            # save_info_to_csv(filename, df) Removing it, because it takes a lot of time
             print(f"Epoch {counterexamples_epoch}: Accuracy: {100 * accuracy:.2f}%, Avg. Test Loss: {avg_loss:.4f}")
 
             if num_of_artifical_instances > original_data_size // 2:
@@ -449,7 +453,45 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
         {"accuracy": accuracy,
          "average_loss": avg_loss, "num_of_artificial_instances": num_of_artifical_instances}
     )
+
+    # write illustrative images of zeros, eights, dotted eights and their guided gradcam
+    grid_model.load_state_dict(iteration_model_state_dict)
+    num_of_examples = 2
+
+    test_data = test_dataloader.dataset.tensors[0].to(device)
+    test_labels = test_dataloader.dataset.tensors[1].to(device)
+    zeros_batch = test_data[test_labels[:, 0] == 1][:num_of_examples]
+    eights_batch = test_data[test_labels[:, 1] == 1][:num_of_examples]
+    dotted_eights_batch = current_data[original_data_size:original_data_size + num_of_examples]
+
+    zeros_target = label_translation["zero"].unsqueeze(0).repeat(num_of_examples, 1)
+    eights_target = label_translation["eight"].unsqueeze(0).repeat(num_of_examples, 1)
+
+    # TODO: remove add illustrative images of explanations created by `create_explanation`
+    eights_explanation = XILUtils.create_explanation(
+        dotted_eights_batch, current_binary_masks[original_data_size:original_data_size + num_of_examples], eights_target,
+        model=grid_model, device=device, target_layers=target_layers, target_classification_criterium=[ClassifierOutputTarget(1) for _ in range(num_of_examples)])
+    # TODO
+
+    # create guided gradcam attention maps
+    zero_guided_gradcam = XILUtils.guided_gradcam_explain(zeros_batch, zeros_target, grid_model, device, target_layers,
+        target_classification_criterium=[ClassifierOutputTarget(0) for _ in range(num_of_examples)])
+    eight_guided_gradcam = XILUtils.guided_gradcam_explain(eights_batch, eights_target, grid_model, device, target_layers,
+                                                          target_classification_criterium=[ClassifierOutputTarget(1) for _ in range(num_of_examples)])
+    dotted_guided_gradcam = XILUtils.guided_gradcam_explain(dotted_eights_batch, eights_target, grid_model, device, target_layers,
+                                                          target_classification_criterium=[ClassifierOutputTarget(1) for _ in range(num_of_examples)])
+    # group and make grids
+    final_zeros = vutils.make_grid(torch.vstack((zeros_batch, zero_guided_gradcam)), nrow=2)
+    final_eights = vutils.make_grid(torch.vstack((eights_batch, eight_guided_gradcam)), nrow=2)
+    final_dotted = vutils.make_grid(torch.vstack((dotted_eights_batch, dotted_guided_gradcam, eights_explanation)), nrow=2)
+
+    # write them down
+    writer.add_images("zeros", final_zeros.unsqueeze(0))
+    writer.add_images("eights", final_eights.unsqueeze(0))
+    writer.add_images("final_dotted", final_dotted.unsqueeze(0))
+
     writer.close()
+    torch.save(iteration_model_state_dict, f"{log_dir}/model_weights.pth")
     return records
 
 
