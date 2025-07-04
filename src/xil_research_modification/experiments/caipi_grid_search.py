@@ -627,10 +627,10 @@ if __name__ == "__main__":
     # Load the dataset
     dataset = torch.load(current_directory / "data/08MNIST/confounded_v1/train.pth", weights_only=False) # TensorDataset
     ds_size = final_args.train_dataset_size
-    assert ds_size < len(dataset.data), f"Dataset size: {ds_size} is set bigger than the actual dataset size."
+    assert ds_size < len(dataset.tensors[0]), f"Dataset size: {ds_size} is set bigger than the actual dataset size."
 
     # shuffle indices
-    indices = torch.randperm(len(dataset.data))
+    indices = torch.randperm(len(dataset.tensors[0]))
 
     misleading_ds_train = RRRDataset(
         dataset.tensors[0][indices][:ds_size],
