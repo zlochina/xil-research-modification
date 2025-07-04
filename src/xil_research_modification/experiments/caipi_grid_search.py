@@ -574,12 +574,6 @@ if __name__ == "__main__":
         help="Path to the CSV file where results will be written"
     )
     parser.add_argument(
-        "--current_path", "-p",
-        type=Path,
-        default=Path(__file__).parent,
-        help="Base directory for loading datasets and models"
-    )
-    parser.add_argument(
         "--optimizer",
         type=str,
         default=None,
@@ -628,26 +622,29 @@ if __name__ == "__main__":
     # Print priority system warnings
     config_manager.print_priority_warnings(final_args)
 
-    current_path = final_args.current_path if isinstance(final_args.current_path, Path) else Path(final_args.current_path)
+    current_directory = Path(__file__).parent
 
     # Load the dataset
-    dataset = torch.load(current_path / "08_MNIST_output/misleading_dataset.pth", weights_only=False)
+    dataset = torch.load(current_directory / "data/08MNIST/confounded_v1/train.pth", weights_only=False) # RRRDataset
     ds_size = final_args.train_dataset_size
-    assert ds_size < len(dataset["inputs"]), f"Dataset size: {ds_size} is set bigger than the actual dataset size."
+    assert ds_size < len(dataset.data), f"Dataset size: {ds_size} is set bigger than the actual dataset size."
+
+    # shuffle indices
+    indices = torch.randperm(len(dataset.data))
+
     misleading_ds_train = RRRDataset(
-        dataset["inputs"][:ds_size],
-        dataset["targets"][:ds_size],
-        dataset["binary_masks"][:ds_size],
+        dataset.data[indices][:ds_size],
+        dataset.labels[indices][:ds_size],
+        dataset.binary_masks[indices][:ds_size],
     )
 
     model_confounded = CNNTwoConv(num_classes, device)
     model_confounded.load_state_dict(
-        torch.load(current_path / "08_MNIST_output/model_confounded.pth", weights_only=True)
+        torch.load(current_directory / "08_MNIST_output/model_confounded.pth", weights_only=True)
     )
     model_confounded = model_confounded.to(device)
 
-    dataset_test = torch.load(current_path / "08_MNIST_output/test_dataset.pth", weights_only=False)
-    ds_test = TensorDataset(dataset_test["inputs"], dataset_test["targets"])
+    ds_test = torch.load(current_directory / "data/08MNIST/original/test.pth", weights_only=False) # TensorDataset
     test_dataloader = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
 
     loss = torch.nn.CrossEntropyLoss()
