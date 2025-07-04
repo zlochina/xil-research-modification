@@ -69,17 +69,23 @@ class XILUtils:
         total_loss = 0.0
         num_batches = len(dataloader)
 
-        with torch.no_grad():
-            for X, y, A in dataloader:
-                X, y, A = X.to(device), y.to(device), A.to(device)
-                logits = model(X)
-                total_loss += loss_fn(logits, y, A).item()
+        for batch in dataloader:
+            batch = [item.to(device) for item in batch]
 
-                pred_labels = prediction_agg(logits)
-                true_labels = target_agg(y)
+            X = batch[0]
+            y = batch[1]
+            extra_args = batch[2:]  # could be empty or contain multiple tensors
 
-                all_preds.append(pred_labels)
-                all_targets.append(true_labels)
+            logits = model(X)
+
+            # Pass y plus any extra arguments to loss_fn using * unpacking
+            total_loss += loss_fn(logits, y, *extra_args).item()
+
+            pred_labels = prediction_agg(logits)
+            true_labels = target_agg(y)
+
+            all_preds.append(pred_labels)
+            all_targets.append(true_labels)
 
         all_preds = torch.cat(all_preds).cpu().numpy()
         all_targets = torch.cat(all_targets).cpu().numpy()
@@ -155,10 +161,17 @@ class XILUtils:
         num_batches = len(dataloader)
 
         with torch.no_grad():
-            for X, y in dataloader:
-                X, y = X.to(device), y.to(device)
+            for batch in dataloader:
+                batch = [item.to(device) for item in batch]
+
+                X = batch[0]
+                y = batch[1]
+                extra_args = batch[2:]  # could be empty or contain multiple tensors
+
                 logits = model(X)
-                total_loss += loss_fn(logits, y).item()
+
+                # Pass y plus any extra arguments to loss_fn using * unpacking
+                total_loss += loss_fn(logits, y, *extra_args).item()
 
                 pred_labels = prediction_agg(logits)
                 true_labels = target_agg(y)
