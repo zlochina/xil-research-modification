@@ -633,9 +633,9 @@ if __name__ == "__main__":
     indices = torch.randperm(len(dataset.data))
 
     misleading_ds_train = RRRDataset(
-        dataset.data[indices][:ds_size],
-        dataset.labels[indices][:ds_size],
-        dataset.binary_masks[indices][:ds_size],
+        dataset.tensors[0][indices][:ds_size],
+        dataset.tensors[1][indices][:ds_size],
+        dataset.tensors[2][indices][:ds_size],
     )
 
     model_confounded = CNNTwoConv(num_classes, device)
