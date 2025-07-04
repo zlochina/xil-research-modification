@@ -28,7 +28,7 @@ class RRRLoss(nn.Module):
                 # layer.register_backward_hook(self.get_gradients(f"grad_layer_{i}")) TODO: remove
                 layer.register_forward_hook(self.get_activations(f"act_layer_{i}"))
 
-    def forward(self, predictions, targets, binary_masks):
+    def forward(self, predictions, targets, binary_masks=None):
         # right answers computation
         if type(predictions) == tuple:
             predictions = predictions[0]
@@ -62,7 +62,10 @@ class RRRLoss(nn.Module):
         gradByLayers = torch.autograd.grad(log_probs, activations, grad_outputs=grad_outputs, create_graph=True)[0] # TODO: im not sure why its returning tuple
 
         # Scale gradient "images" to the pic size
-        descaled_bin_mask = self.descale_mask(binary_masks, gradByLayers.shape)
+        if binary_masks is None:
+            descaled_bin_mask = torch.zeros(gradByLayers.shape, device=self.device) # TODO debug it
+        else:
+            descaled_bin_mask = self.descale_mask(binary_masks, gradByLayers.shape)
         broadcasted_binary_masks = descaled_bin_mask.expand_as(gradByLayers)
 
         A_mul_grad = (broadcasted_binary_masks * gradByLayers) ** 2
