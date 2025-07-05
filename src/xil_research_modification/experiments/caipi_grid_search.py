@@ -465,7 +465,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     test_labels = test_dataloader.dataset.tensors[1].to(device)
     zeros_batch = test_data[test_labels[:, 0] == 1][:num_of_examples]
     eights_batch = test_data[test_labels[:, 1] == 1][:num_of_examples]
-    dotted_eights_batch = current_data[original_data_size:original_data_size + num_of_examples:ce_num]
+    dotted_eights_batch = current_data[original_data_size::ce_num][:num_of_examples] # slow -> replace with one [] indexing
 
     zeros_target = label_translation["zero"].unsqueeze(0).repeat(num_of_examples, 1)
     eights_target = label_translation["eight"].unsqueeze(0).repeat(num_of_examples, 1)
