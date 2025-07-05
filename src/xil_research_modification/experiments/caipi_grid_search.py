@@ -297,6 +297,14 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
                               misleading_data, misleading_labels, model_confounded, num_of_instances, optim,
                               evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records, specific_case)
 
+def define_optim(optim: str, grid_model, lr):
+    if optim == "adam":
+        optimizer = Adam(grid_model.parameters(), lr=lr)
+    elif optim == "sgd":
+        optimizer = SGD(grid_model.parameters(), lr=lr, momentum=0.9)
+    else:
+        raise ValueError(f"Unknown optimizer: {optim}")
+    return optimizer
 
 def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, misleading_binary_masks,
                           misleading_data, misleading_labels, model_confounded, num_of_instances, optim,
@@ -332,12 +340,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     model_confounded_state_dict = model_confounded.state_dict()
     grid_model.load_state_dict(model_confounded_state_dict)
 
-    if optim == "adam":
-        optimizer = Adam(grid_model.parameters(), lr=lr)
-    elif optim == "sgd":
-        optimizer = SGD(grid_model.parameters(), lr=lr, momentum=0.9)
-    else:
-        raise ValueError(f"Unknown optimizer: {optim}")
+    optimizer = define_optim(optim, grid_model, lr)
 
     metrics_dict, avg_loss = XILUtils.test_loop(test_dataloader, grid_model, loss, device, metric='all')
     accuracy = metrics_dict["accuracy"]
@@ -445,6 +448,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
 
             if from_ground_zero:
                 grid_model.load_state_dict(model_confounded_state_dict)
+                optimizer = define_optim(optim, grid_model, lr)
 
             # update epoch
             counterexamples_epoch += 1
@@ -464,7 +468,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     test_labels = test_dataloader.dataset.tensors[1].to(device)
     zeros_batch = test_data[test_labels[:, 0] == 1][:num_of_examples]
     eights_batch = test_data[test_labels[:, 1] == 1][:num_of_examples]
-    dotted_eights_batch = current_data[original_data_size:original_data_size + num_of_examples]
+    dotted_eights_batch = current_data[original_data_size:original_data_size + num_of_examples:ce_num]
 
     zeros_target = label_translation["zero"].unsqueeze(0).repeat(num_of_examples, 1)
     eights_target = label_translation["eight"].unsqueeze(0).repeat(num_of_examples, 1)
