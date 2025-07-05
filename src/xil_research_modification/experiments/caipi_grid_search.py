@@ -356,7 +356,6 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     duplicate_informative_instances_iteration = 0
 
     classifier_target_output_list = [classifier_target_output for _ in range(ce_num * num_of_instances)]
-    iteration_model_state_dict = None
     target_layers = [grid_model[3]]
 
     with progressbar.ProgressBar(widgets=widgets, max_value=1e+4) as bar:
@@ -364,6 +363,10 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
         bar.update(accuracy * 1e+4)
         # Step Into Fitting Until Convergence
         while accuracy < threshold:
+            if from_ground_zero:
+                grid_model.load_state_dict(model_confounded_state_dict)
+                optimizer = define_optim(optim, grid_model, lr)
+
             # Step 1: Get Informative Instances
             indices = get_informative_instance(current_labels[:original_data_size], num_of_instances,
                                                original_data_size)
@@ -442,13 +445,8 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
             print(f"Epoch {counterexamples_epoch}: Accuracy: {100 * accuracy:.2f}%, Avg. Test Loss: {avg_loss:.4f}")
 
             if num_of_artifical_instances > original_data_size // 2:
-                iteration_model_state_dict = deepcopy(grid_model.state_dict())
                 # TODO: change only after the analysis of the results and if it shows that some model could converge
                 break
-
-            if from_ground_zero:
-                grid_model.load_state_dict(model_confounded_state_dict)
-                optimizer = define_optim(optim, grid_model, lr)
 
             # update epoch
             counterexamples_epoch += 1
@@ -461,7 +459,6 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     )
 
     # write illustrative images of zeros, eights, dotted eights and their guided gradcam
-    grid_model.load_state_dict(iteration_model_state_dict)
     num_of_examples = 2
 
     test_data = test_dataloader.dataset.tensors[0].to(device)
