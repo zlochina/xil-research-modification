@@ -22,6 +22,7 @@ import progressbar
 import sys
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.utils as vutils
+from copy import deepcopy
 
 widgets = [
     progressbar.Percentage(),
@@ -407,9 +408,6 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
             metrics_dict, avg_loss = fit_until_optimum_or_threshold(grid_model, grid_train_dl, test_dataloader, optimizer, loss,
                                                                     threshold=threshold,
                                                                     evaluate_every_nth_epoch=evaluate_every_nth_epoch)
-            iteration_model_state_dict = grid_model.state_dict()
-            if from_ground_zero:
-                grid_model.load_state_dict(model_confounded_state_dict)
 
             accuracy = metrics_dict["accuracy"]
 
@@ -436,13 +434,17 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
                 "from_ground_zero": from_ground_zero,
                 "num_of_artificial_instances": num_of_artifical_instances,
             })
-            df = pd.DataFrame(records)
+            # df = pd.DataFrame(records)
             # save_info_to_csv(filename, df) Removing it, because it takes a lot of time
             print(f"Epoch {counterexamples_epoch}: Accuracy: {100 * accuracy:.2f}%, Avg. Test Loss: {avg_loss:.4f}")
 
             if num_of_artifical_instances > original_data_size // 2:
+                iteration_model_state_dict = deepcopy(grid_model.state_dict())
                 # TODO: change only after the analysis of the results and if it shows that some model could converge
                 break
+
+            if from_ground_zero:
+                grid_model.load_state_dict(model_confounded_state_dict)
 
             # update epoch
             counterexamples_epoch += 1
