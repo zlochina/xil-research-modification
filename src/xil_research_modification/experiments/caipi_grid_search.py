@@ -494,7 +494,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
     writer.add_images("final_dotted", final_dotted.unsqueeze(0))
 
     writer.close()
-    torch.save(iteration_model_state_dict, f"{log_dir}/model_weights.pth")
+    torch.save(grid_model.state_dict(), f"{log_dir}/model_weights.pth")
     return records
 
 
