@@ -469,10 +469,15 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
 
     zeros_target = label_translation["zero"].unsqueeze(0).repeat(num_of_examples, 1)
     eights_target = label_translation["eight"].unsqueeze(0).repeat(num_of_examples, 1)
+    dotted_eights_target = label_translation["eight"].unsqueeze(0).repeat(num_of_examples, 1)
+
+    if len(dotted_eights_batch) != num_of_examples:
+        # special case, when the num of artificial instances for convergence was less than num_of_examples we want to show (E.g. it broke for me when it was 1)
+        dotted_eights_target = dotted_eights_target[:len(dotted_eights_batch)]
 
     # TODO: remove add illustrative images of explanations created by `create_explanation`
     eights_explanation = XILUtils.create_explanation(
-        dotted_eights_batch, current_binary_masks[original_data_size:original_data_size + num_of_examples], eights_target,
+        dotted_eights_batch, current_binary_masks[original_data_size:original_data_size + num_of_examples], dotted_eights_target,
         model=grid_model, device=device, target_layers=target_layers, target_classification_criterium=[ClassifierOutputTarget(1) for _ in range(num_of_examples)])
     # TODO
 
