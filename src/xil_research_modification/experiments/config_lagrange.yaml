@@ -1,0 +1,146 @@
+# Example configuration file for grid search
+# Supports both YAML and JSON formats
+
+general:
+  # Program arguments that apply by default
+  program_args:
+    threshold: 0.95
+    optimizer: "sgd"
+    evaluate_every_nth_epoch: 10
+    train_from_ground_zero: true
+    train_dataset_size: 1000
+    output_filename: "caipi_expr/default_experiment.csv"
+
+  # Grid search hyperparameters (default values)
+  ce_num: [1, 2, 3, 4, 5]
+  strategy: ["substitution", "marginalized_substitution", "alternative_value"]
+  num_of_instances: [5]
+  lr: [1.e-2, 1.e-3, 1.e-4]
+
+specific:
+  # sgd configurations
+  sgd_200:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "sgd"
+      output_filename: "caipi_experiment/sgd_200.csv"
+      train_from_ground_zero: True
+
+    ce_num: [1, 2, 3, 4, 5]
+    strategy: ["random", "substitution", "marginalized_substitution", "alternative_value"]
+    num_of_instances: [3]
+    lr: [0.07]
+
+  sgd_full:
+    program_args:
+      train_dataset_size: -1
+      optimizer: "sgd"
+      output_filename: "caipi_experiment/sgd_full.csv"
+      train_from_ground_zero: True
+
+    ce_num: [1, 2, 3, 4, 5]
+    strategy: ["substitution", "marginalized_substitution", "alternative_value"]
+    num_of_instances: [3]
+    lr: [0.07]
+
+  # adam configurations
+  adam_200:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "adam"
+      output_filename: "caipi_experiment/adam_200.csv"
+      train_from_ground_zero: True
+
+    ce_num: [1, 2, 3, 4, 5]
+    strategy: ["random", "substitution", "marginalized_substitution", "alternative_value"]
+    num_of_instances: [3]
+    lr: [0.003]
+
+  adam_full:
+    program_args:
+      train_dataset_size: -1
+      optimizer: "adam"
+      output_filename: "caipi_experiment/adam_full.csv"
+      train_from_ground_zero: True
+
+    ce_num: [1, 2, 3, 4, 5]
+    strategy: ["substitution", "marginalized_substitution", "alternative_value"]
+    num_of_instances: [3]
+    lr: [0.003]
+
+  # Learning rates configurations
+  sgd_check_rates:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "sgd"
+      output_filename: "caipi_experiment/sgd_check_rates.csv"
+      train_from_ground_zero: True
+
+    ce_num: [1]
+    strategy: ["alternative_value"]
+    num_of_instances: [1]
+    lr: [1.0e-05, 1.2648552168552958e-05, 1.5998587196060572e-05, 2.0235896477251556e-05, 2.559547922699533e-05, 3.237457542817647e-05, 4.094915062380427e-05, 5.1794746792312125e-05, 6.55128556859551e-05, 8.286427728546843e-05, 0.00010481131341546853, 0.00013257113655901095, 0.00016768329368110083, 0.00021209508879201905, 0.0002682695795279727, 0.000339322177189533, 0.00042919342601287783, 0.0005428675439323859, 0.0006866488450042998, 0.000868511373751353, 0.0010985411419875584, 0.0013894954943731374, 0.001757510624854793, 0.0022229964825261957, 0.002811768697974231, 0.0035564803062231283, 0.004498432668969444, 0.005689866029018299, 0.0071968567300115215, 0.009102981779915217, 0.011513953993264481, 0.014563484775012445, 0.018420699693267165, 0.023299518105153717, 0.029470517025518096, 0.037275937203149416, 0.04714866363457394, 0.05963623316594643, 0.07543120063354623, 0.09540954763499944, 0.1206792640639329, 0.15264179671752334, 0.19306977288832497, 0.244205309454865, 0.30888435964774846, 0.3906939937054621, 0.49417133613238384, 0.6250551925273976, 0.7906043210907702, 1.0]
+    # Learning rates created by `list(np.logspace(-5, 0, num=50))`
+
+  # Learning rates configurations
+  adam_check_rates:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "adam"
+      output_filename: "caipi_experiment/adam_check_rates.csv"
+      train_from_ground_zero: True
+
+    ce_num: [1]
+    strategy: ["alternative_value"]
+    num_of_instances: [1]
+    lr: [1.0e-05, 1.2648552168552958e-05, 1.5998587196060572e-05, 2.0235896477251556e-05, 2.559547922699533e-05, 3.237457542817647e-05, 4.094915062380427e-05, 5.1794746792312125e-05, 6.55128556859551e-05, 8.286427728546843e-05, 0.00010481131341546853, 0.00013257113655901095, 0.00016768329368110083, 0.00021209508879201905, 0.0002682695795279727, 0.000339322177189533, 0.00042919342601287783, 0.0005428675439323859, 0.0006866488450042998, 0.000868511373751353, 0.0010985411419875584, 0.0013894954943731374, 0.001757510624854793, 0.0022229964825261957, 0.002811768697974231, 0.0035564803062231283, 0.004498432668969444, 0.005689866029018299, 0.0071968567300115215, 0.009102981779915217, 0.011513953993264481, 0.014563484775012445, 0.018420699693267165, 0.023299518105153717, 0.029470517025518096, 0.037275937203149416, 0.04714866363457394, 0.05963623316594643, 0.07543120063354623, 0.09540954763499944, 0.1206792640639329, 0.15264179671752334, 0.19306977288832497, 0.244205309454865, 0.30888435964774846, 0.3906939937054621, 0.49417133613238384, 0.6250551925273976, 0.7906043210907702, 1.0]
+    # Learning rates created by `list(np.logspace(-5, 0, num=50))`
+
+  # Control strategy: check that model does not learn significantly
+  control_adam_200:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "adam"
+      output_filename: "caipi_experiment/control_adam_200.csv"
+      train_from_ground_zero: True
+
+    ce_num: [1, 2, 3, 4, 5]
+    strategy: ["pseudo"]
+    num_of_instances: [1]
+    lr: [0.003]
+
+  control_sgd_200:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "sgd"
+      output_filename: "caipi_experiment/control_sgd_200.csv"
+      train_from_ground_zero: True
+
+    ce_num: [1, 2, 3, 4, 5]
+    strategy: ["pseudo"]
+    num_of_instances: [1]
+    lr: [0.07]
+
+  control_lagrange_sgd_200:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "sgd"
+      output_filename: "caipi_experiment/control_lagrange_sgd_200.csv"
+      train_from_ground_zero: True
+
+    ce_num: [1]
+    strategy: ["alternative_value"]
+    num_of_instances: [1]
+    lr: [0.07]
+
+  control_lagrange_adam_200:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "sgd"
+      output_filename: "caipi_experiment/control_lagrange_adam_200.csv"
+      train_from_ground_zero: True
+
+    ce_num: [1]
+    strategy: ["alternative_value"]
+    num_of_instances: [1]
+    lr: [0.003]
