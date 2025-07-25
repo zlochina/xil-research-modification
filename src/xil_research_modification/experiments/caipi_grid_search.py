@@ -22,7 +22,6 @@ import progressbar
 import sys
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.utils as vutils
-from copy import deepcopy
 
 widgets = [
     progressbar.Percentage(),
@@ -146,6 +145,54 @@ def save_info_to_csv(filename: Path, info: pd.DataFrame):
     # Write the info dictionary to the file as CSV
     info.to_csv(filename.with_suffix('.csv'), index=False)
 
+
+def tensorboard_write_informative_illustrations(ce_num, current_binary_masks, current_data, device, grid_model,
+                                                original_data_size, target_layers, test_dataloader, writer):
+    # write illustrative images of zeros, eights, dotted eights and their guided gradcam
+    num_of_examples = 2
+    test_data = test_dataloader.dataset.tensors[0].to(device)
+    test_labels = test_dataloader.dataset.tensors[1].to(device)
+    zeros_batch = test_data[test_labels[:, 0] == 1][:num_of_examples]
+    eights_batch = test_data[test_labels[:, 1] == 1][:num_of_examples]
+    dotted_eights_batch = current_data[original_data_size::ce_num][
+                          :num_of_examples]  # slow -> replace with one [] indexing
+    zeros_target = label_translation["zero"].unsqueeze(0).repeat(num_of_examples, 1)
+    eights_target = label_translation["eight"].unsqueeze(0).repeat(num_of_examples, 1)
+    dotted_eights_target = label_translation["eight"].unsqueeze(0).repeat(num_of_examples, 1)
+    if len(dotted_eights_batch) != num_of_examples:
+        # special case, when the num of artificial instances for convergence was less than num_of_examples we want to show (E.g. it broke for me when it was 1)
+        dotted_eights_target = dotted_eights_target[:len(dotted_eights_batch)]
+    # TODO: remove add illustrative images of explanations created by `create_explanation`
+    eights_explanation = XILUtils.create_explanation(
+        dotted_eights_batch, current_binary_masks[original_data_size:original_data_size + num_of_examples],
+        dotted_eights_target,
+        model=grid_model, device=device, target_layers=target_layers,
+        target_classification_criterium=[ClassifierOutputTarget(1) for _ in range(num_of_examples)])
+    # TODO
+    # create guided gradcam attention maps
+    zero_guided_gradcam = XILUtils.guided_gradcam_explain(zeros_batch, zeros_target, grid_model, device, target_layers,
+                                                          target_classification_criterium=[ClassifierOutputTarget(0) for
+                                                                                           _ in range(num_of_examples)])
+    eight_guided_gradcam = XILUtils.guided_gradcam_explain(eights_batch, eights_target, grid_model, device,
+                                                           target_layers,
+                                                           target_classification_criterium=[ClassifierOutputTarget(1)
+                                                                                            for _ in
+                                                                                            range(num_of_examples)])
+    dotted_guided_gradcam = XILUtils.guided_gradcam_explain(dotted_eights_batch, eights_target, grid_model, device,
+                                                            target_layers,
+                                                            target_classification_criterium=[ClassifierOutputTarget(1)
+                                                                                             for _ in
+                                                                                             range(num_of_examples)])
+    # TODO: add colormap to images ('viridis' or whatever)
+    # group and make grids
+    final_zeros = vutils.make_grid(torch.vstack((zeros_batch, zero_guided_gradcam)), nrow=2)
+    final_eights = vutils.make_grid(torch.vstack((eights_batch, eight_guided_gradcam)), nrow=2)
+    final_dotted = vutils.make_grid(torch.vstack((dotted_eights_batch, dotted_guided_gradcam, eights_explanation)),
+                                    nrow=2)
+    # write them down
+    writer.add_images("zeros", final_zeros.unsqueeze(0))
+    writer.add_images("eights", final_eights.unsqueeze(0))
+    writer.add_images("final_dotted", final_dotted.unsqueeze(0))
 
 def train_evaluate(model, train_dataloader, test_dataloader, optimizer, loss_fn, num_epochs=1, verbose=True):
     df = pd.DataFrame({
@@ -458,45 +505,8 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, loss, lr, 
          "average_loss": avg_loss, "num_of_artificial_instances": num_of_artifical_instances}
     )
 
-    # write illustrative images of zeros, eights, dotted eights and their guided gradcam
-    num_of_examples = 2
-
-    test_data = test_dataloader.dataset.tensors[0].to(device)
-    test_labels = test_dataloader.dataset.tensors[1].to(device)
-    zeros_batch = test_data[test_labels[:, 0] == 1][:num_of_examples]
-    eights_batch = test_data[test_labels[:, 1] == 1][:num_of_examples]
-    dotted_eights_batch = current_data[original_data_size::ce_num][:num_of_examples] # slow -> replace with one [] indexing
-
-    zeros_target = label_translation["zero"].unsqueeze(0).repeat(num_of_examples, 1)
-    eights_target = label_translation["eight"].unsqueeze(0).repeat(num_of_examples, 1)
-    dotted_eights_target = label_translation["eight"].unsqueeze(0).repeat(num_of_examples, 1)
-
-    if len(dotted_eights_batch) != num_of_examples:
-        # special case, when the num of artificial instances for convergence was less than num_of_examples we want to show (E.g. it broke for me when it was 1)
-        dotted_eights_target = dotted_eights_target[:len(dotted_eights_batch)]
-
-    # TODO: remove add illustrative images of explanations created by `create_explanation`
-    eights_explanation = XILUtils.create_explanation(
-        dotted_eights_batch, current_binary_masks[original_data_size:original_data_size + num_of_examples], dotted_eights_target,
-        model=grid_model, device=device, target_layers=target_layers, target_classification_criterium=[ClassifierOutputTarget(1) for _ in range(num_of_examples)])
-    # TODO
-
-    # create guided gradcam attention maps
-    zero_guided_gradcam = XILUtils.guided_gradcam_explain(zeros_batch, zeros_target, grid_model, device, target_layers,
-        target_classification_criterium=[ClassifierOutputTarget(0) for _ in range(num_of_examples)])
-    eight_guided_gradcam = XILUtils.guided_gradcam_explain(eights_batch, eights_target, grid_model, device, target_layers,
-                                                          target_classification_criterium=[ClassifierOutputTarget(1) for _ in range(num_of_examples)])
-    dotted_guided_gradcam = XILUtils.guided_gradcam_explain(dotted_eights_batch, eights_target, grid_model, device, target_layers,
-                                                          target_classification_criterium=[ClassifierOutputTarget(1) for _ in range(num_of_examples)])
-    # group and make grids
-    final_zeros = vutils.make_grid(torch.vstack((zeros_batch, zero_guided_gradcam)), nrow=2)
-    final_eights = vutils.make_grid(torch.vstack((eights_batch, eight_guided_gradcam)), nrow=2)
-    final_dotted = vutils.make_grid(torch.vstack((dotted_eights_batch, dotted_guided_gradcam, eights_explanation)), nrow=2)
-
-    # write them down
-    writer.add_images("zeros", final_zeros.unsqueeze(0))
-    writer.add_images("eights", final_eights.unsqueeze(0))
-    writer.add_images("final_dotted", final_dotted.unsqueeze(0))
+    tensorboard_write_informative_illustrations(ce_num, current_binary_masks, current_data, device, grid_model,
+                                                original_data_size, target_layers, test_dataloader, writer)
 
     writer.close()
     torch.save(grid_model.state_dict(), f"{log_dir}/model_weights.pth")
