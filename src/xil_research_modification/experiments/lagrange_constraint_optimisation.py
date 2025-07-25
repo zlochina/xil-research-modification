@@ -271,17 +271,27 @@ def define_parameters(inputs, targets, config_manager: ConfigManager, specific_c
         }
         return parameters_grid
 
+def write_lambdas(writer: SummaryWriter, lambdas: dict, epoch: int):
+    for key, value in lambdas.items():
+        writer.add_scalar(f"Lambda {key}/val", value, epoch)
+
 
 def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, optimizer, loss_fn, original_data_size,
+                                   log_dir,
                                    threshold, no_improve_epochs_th=10, evaluate_every_nth_epoch=10):
     epoch = 0
     epochs_no_improve = 0
     best_loss = float('inf')
+    writer = SummaryWriter(
+        log_dir=log_dir)
 
     while True:
         # Step 1: Train
         loss_fn.train()
         train_loss = train_loop(train_dataloader, model, loss_fn, optimizer, device, batch_size, original_data_size)
+        # writer.add_scalar("Accuracy/train", accuracy, epoch)
+        writer.add_scalar("Average Loss/train", train_loss, epoch)
+        write_lambdas(writer, loss_fn.lambdas, epoch)
 
         # Step 2: Evaluate Now?
         if epoch % evaluate_every_nth_epoch == 0:
@@ -289,6 +299,8 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
             loss_fn.evaluate()
             metrics, avg_loss = XILUtils.test_loop(test_dataloader, model, loss_fn, device, metric='accuracy')
             acc = metrics["accuracy"]
+            writer.add_scalar("Accuracy/val", acc, epoch)
+            writer.add_scalar("Average Loss/val", avg_loss, epoch)
 
             # SubStep 2: If We Reach Set Threshold -> We Fitted and Exit
             if acc >= threshold:
@@ -305,7 +317,10 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
                 print(f"Stopping training after {epochs_no_improve} epochs without improvement.")
                 break
         epoch += 1
-    return metrics, avg_loss
+    final_lambdas = {str(key): value for key, value in loss_fn.lambdas.items()}
+    metrics_dict = {**{"accuracy": acc,
+                       "average_loss": avg_loss, "num_of_artificial_instances": len(loss_fn.lambdas)}, **final_lambdas}
+    return metrics, avg_loss, writer
 
 def grid_search(filename: Path, misleading_ds_train, model_confounded, test_dataloader, device, threshold, optim,
                 evaluate_every_nth_epoch=16, from_ground_zero=False, config_manager: ConfigManager = None, specific_case: str = None):
@@ -340,10 +355,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
                           lambda_update_constant, lambda_update_interval, initial_lambda):
     original_data_size = misleading_data.size(0)
 
-    combination_name = f"ce_num_{ce_num}__lr_{lr}__strategy__{str(strategy)}"
-    log_dir = f"runs/caipi_experiment_{specific_case}__num_of_instances_{num_of_instances}{'_ground_zero' if from_ground_zero else ''}/{combination_name}"
-    writer = SummaryWriter(
-        log_dir=log_dir)
+    combination_name = f"__lr_{lr}__update_constant_{lambda_update_constant}__update_interval{lambda_update_interval}"
 
     used_indices = set()
     def get_informative_instance(targets, num_of_instances, dataset_size):
@@ -380,8 +392,6 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
                                    )
     metrics_dict, avg_loss = XILUtils.test_loop(test_dataloader, grid_model, loss, device, metric='all')
     accuracy = metrics_dict["accuracy"]
-    writer.add_scalar("Accuracy/val", accuracy, 0)
-    writer.add_scalar("Average Loss/val", avg_loss, 0)
     print(f"Initial accuracy: {100 * accuracy:.2f}%")
 
     current_data = misleading_data.clone()
@@ -398,6 +408,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
         bar.update(accuracy * 1e+4)
         # Step Into Fitting Until Convergence
         while accuracy < threshold:
+            log_dir = f"runs/caipi_lagrange_experiment_{specific_case}__num_of_instances_{num_of_instances}{'_ground_zero' if from_ground_zero else ''}/{combination_name}"
             if from_ground_zero:
                 grid_model.load_state_dict(model_confounded_state_dict)
                 optimizer = define_optim(optim, grid_model, lr)
@@ -443,21 +454,28 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
                                            initial_lambda=initial_lambda,
                                            )
 
+            num_of_artifical_instances = len(current_labels) - original_data_size
             # Step 7: Fit to new dataset
             current_tensor_dataset = TensorDataset(current_data, current_labels)
             first_origin_idxs, second_origin_idxs = customBatchSampler_create_origin_indices(original_data_size, len(current_tensor_dataset))
             batch_sampler = OriginBatchSampler(first_origin_idxs, second_origin_idxs, batch_size, k)
             grid_train_dl = DataLoader(current_tensor_dataset, batch_sampler=batch_sampler)
-            metrics_dict, avg_loss = fit_until_optimum_or_threshold(grid_model, grid_train_dl, test_dataloader, optimizer, loss, original_data_size,
+            log_dir = log_dir + f"__num_of_art_inst_{num_of_artifical_instances}"
+            metrics_dict, avg_loss, writer = fit_until_optimum_or_threshold(grid_model, grid_train_dl, test_dataloader, optimizer, loss, original_data_size,
+                                                                    log_dir,
                                                                     threshold=threshold,
                                                                     evaluate_every_nth_epoch=evaluate_every_nth_epoch)
 
+            writer.add_hparams(
+                {"ce_num": ce_num, "strategy": str(strategy), "lr": lr, "num_of_instances_per_epoch": num_of_instances,
+                 "lambda_update_constant": lambda_update_constant,
+                 "lambda_update_interval": lambda_update_interval, "initial_lambda": initial_lambda,
+                 "threshold": threshold},
+                metrics_dict
+            )
+            writer.close()
+            torch.save(grid_model.state_dict(), f"{log_dir}/model_weights.pth")
             accuracy = metrics_dict["accuracy"]
-
-            num_of_artifical_instances = len(current_labels) - original_data_size
-
-            writer.add_scalar("Accuracy/val", accuracy, num_of_artifical_instances)
-            writer.add_scalar("Average Loss/val", avg_loss, num_of_artifical_instances)
 
             # Update ProgressBar
             bar.update(accuracy * 1e+4)
@@ -493,59 +511,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
             counterexamples_epoch += 1
     df = pd.DataFrame(records)
     save_info_to_csv(filename, df)
-    final_lambdas = {str(key): value for key, value in loss.lambdas.items()}
-    metrics_dict = {**{"accuracy": accuracy,
-         "average_loss": avg_loss, "num_of_artificial_instances": num_of_artifical_instances}, **final_lambdas}
-    writer.add_hparams(
-        {"ce_num": ce_num, "strategy": str(strategy), "lr": lr, "num_of_instances_per_epoch": num_of_instances,
-         "lambda_update_constant": lambda_update_constant,
-         "lambda_update_interval": lambda_update_interval, "initial_lambda": initial_lambda, "threshold": threshold},
-        metrics_dict
-    )
 
-    # write illustrative images of zeros, eights, dotted eights and their guided gradcam
-    num_of_examples = 2
-    test_data = test_dataloader.dataset.tensors[0].to(device)
-    test_labels = test_dataloader.dataset.tensors[1].to(device)
-    zeros_batch = test_data[test_labels[:, 0] == 1][:num_of_examples]
-    eights_batch = test_data[test_labels[:, 1] == 1][:num_of_examples]
-    dotted_eights_batch = current_data[current_labels[:, 1] == 1][
-                          :num_of_examples]  # slow -> replace with one [] indexing
-
-    zeros_target = label_translation["zero"].unsqueeze(0).repeat(num_of_examples, 1)
-    eights_target = label_translation["eight"].unsqueeze(0).repeat(num_of_examples, 1)
-    dotted_eights_target = label_translation["eight"].unsqueeze(0).repeat(num_of_examples, 1)
-    if len(dotted_eights_batch) != num_of_examples:
-        # special case, when the num of artificial instances for convergence was less than num_of_examples we want to show (E.g. it broke for me when it was 1)
-        dotted_eights_target = dotted_eights_target[:len(dotted_eights_batch)]
-
-    # create guided gradcam attention maps
-    zero_guided_gradcam = XILUtils.guided_gradcam_explain(zeros_batch, zeros_target, grid_model, device, target_layers,
-                                                          target_classification_criterium=[ClassifierOutputTarget(0) for
-                                                                                           _ in range(num_of_examples)])
-    eight_guided_gradcam = XILUtils.guided_gradcam_explain(eights_batch, eights_target, grid_model, device,
-                                                           target_layers,
-                                                           target_classification_criterium=[ClassifierOutputTarget(1)
-                                                                                            for _ in
-                                                                                            range(num_of_examples)])
-    dotted_guided_gradcam = XILUtils.guided_gradcam_explain(dotted_eights_batch, eights_target[:len(dotted_eights_batch)], grid_model, device,
-                                                            target_layers,
-                                                            target_classification_criterium=[ClassifierOutputTarget(1)
-                                                                                             for _ in
-                                                                                             range(num_of_examples)])
-    # TODO: add colormap to images ('viridis' or whatever)
-    # group and make grids
-    final_zeros = vutils.make_grid(torch.vstack((zeros_batch, zero_guided_gradcam)), nrow=2)
-    final_eights = vutils.make_grid(torch.vstack((eights_batch, eight_guided_gradcam)), nrow=2)
-    final_dotted = vutils.make_grid(torch.vstack((dotted_eights_batch, dotted_guided_gradcam)),
-                                    nrow=2)
-    # write them down
-    writer.add_images("zeros", final_zeros.unsqueeze(0))
-    writer.add_images("eights", final_eights.unsqueeze(0))
-    writer.add_images("final_dotted", final_dotted.unsqueeze(0))
-
-    writer.close()
-    torch.save(grid_model.state_dict(), f"{log_dir}/model_weights.pth")
     return records
 
 if __name__ == "__main__":

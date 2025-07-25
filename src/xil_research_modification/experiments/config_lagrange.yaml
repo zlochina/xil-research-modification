@@ -127,6 +127,7 @@ specific:
       optimizer: "sgd"
       output_filename: "caipi_experiment/control_lagrange_sgd_200.csv"
       train_from_ground_zero: True
+      evaluate_every_nth_epoch: 1
 
     ce_num: [1]
     strategy: ["alternative_value"]
@@ -139,6 +140,7 @@ specific:
       optimizer: "sgd"
       output_filename: "caipi_experiment/control_lagrange_adam_200.csv"
       train_from_ground_zero: True
+      evaluate_every_nth_epoch: 1
 
     ce_num: [1]
     strategy: ["alternative_value"]
