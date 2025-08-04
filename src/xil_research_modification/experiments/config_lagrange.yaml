@@ -5,6 +5,7 @@ general:
   # Program arguments that apply by default
   program_args:
     threshold: 0.95
+    fixed_lambda: False
     optimizer: "sgd"
     evaluate_every_nth_epoch: 10
     train_from_ground_zero: true
@@ -18,109 +19,7 @@ general:
   lr: [1.e-2, 1.e-3, 1.e-4]
 
 specific:
-  # sgd configurations
-  sgd_200:
-    program_args:
-      train_dataset_size: 200
-      optimizer: "sgd"
-      output_filename: "caipi_experiment/sgd_200.csv"
-      train_from_ground_zero: True
-
-    ce_num: [1, 2, 3, 4, 5]
-    strategy: ["random", "substitution", "marginalized_substitution", "alternative_value"]
-    num_of_instances: [3]
-    lr: [0.07]
-
-  sgd_full:
-    program_args:
-      train_dataset_size: -1
-      optimizer: "sgd"
-      output_filename: "caipi_experiment/sgd_full.csv"
-      train_from_ground_zero: True
-
-    ce_num: [1, 2, 3, 4, 5]
-    strategy: ["substitution", "marginalized_substitution", "alternative_value"]
-    num_of_instances: [3]
-    lr: [0.07]
-
-  # adam configurations
-  adam_200:
-    program_args:
-      train_dataset_size: 200
-      optimizer: "adam"
-      output_filename: "caipi_experiment/adam_200.csv"
-      train_from_ground_zero: True
-
-    ce_num: [1, 2, 3, 4, 5]
-    strategy: ["random", "substitution", "marginalized_substitution", "alternative_value"]
-    num_of_instances: [3]
-    lr: [0.003]
-
-  adam_full:
-    program_args:
-      train_dataset_size: -1
-      optimizer: "adam"
-      output_filename: "caipi_experiment/adam_full.csv"
-      train_from_ground_zero: True
-
-    ce_num: [1, 2, 3, 4, 5]
-    strategy: ["substitution", "marginalized_substitution", "alternative_value"]
-    num_of_instances: [3]
-    lr: [0.003]
-
-  # Learning rates configurations
-  sgd_check_rates:
-    program_args:
-      train_dataset_size: 200
-      optimizer: "sgd"
-      output_filename: "caipi_experiment/sgd_check_rates.csv"
-      train_from_ground_zero: True
-
-    ce_num: [1]
-    strategy: ["alternative_value"]
-    num_of_instances: [1]
-    lr: [1.0e-05, 1.2648552168552958e-05, 1.5998587196060572e-05, 2.0235896477251556e-05, 2.559547922699533e-05, 3.237457542817647e-05, 4.094915062380427e-05, 5.1794746792312125e-05, 6.55128556859551e-05, 8.286427728546843e-05, 0.00010481131341546853, 0.00013257113655901095, 0.00016768329368110083, 0.00021209508879201905, 0.0002682695795279727, 0.000339322177189533, 0.00042919342601287783, 0.0005428675439323859, 0.0006866488450042998, 0.000868511373751353, 0.0010985411419875584, 0.0013894954943731374, 0.001757510624854793, 0.0022229964825261957, 0.002811768697974231, 0.0035564803062231283, 0.004498432668969444, 0.005689866029018299, 0.0071968567300115215, 0.009102981779915217, 0.011513953993264481, 0.014563484775012445, 0.018420699693267165, 0.023299518105153717, 0.029470517025518096, 0.037275937203149416, 0.04714866363457394, 0.05963623316594643, 0.07543120063354623, 0.09540954763499944, 0.1206792640639329, 0.15264179671752334, 0.19306977288832497, 0.244205309454865, 0.30888435964774846, 0.3906939937054621, 0.49417133613238384, 0.6250551925273976, 0.7906043210907702, 1.0]
-    # Learning rates created by `list(np.logspace(-5, 0, num=50))`
-
-  # Learning rates configurations
-  adam_check_rates:
-    program_args:
-      train_dataset_size: 200
-      optimizer: "adam"
-      output_filename: "caipi_experiment/adam_check_rates.csv"
-      train_from_ground_zero: True
-
-    ce_num: [1]
-    strategy: ["alternative_value"]
-    num_of_instances: [1]
-    lr: [1.0e-05, 1.2648552168552958e-05, 1.5998587196060572e-05, 2.0235896477251556e-05, 2.559547922699533e-05, 3.237457542817647e-05, 4.094915062380427e-05, 5.1794746792312125e-05, 6.55128556859551e-05, 8.286427728546843e-05, 0.00010481131341546853, 0.00013257113655901095, 0.00016768329368110083, 0.00021209508879201905, 0.0002682695795279727, 0.000339322177189533, 0.00042919342601287783, 0.0005428675439323859, 0.0006866488450042998, 0.000868511373751353, 0.0010985411419875584, 0.0013894954943731374, 0.001757510624854793, 0.0022229964825261957, 0.002811768697974231, 0.0035564803062231283, 0.004498432668969444, 0.005689866029018299, 0.0071968567300115215, 0.009102981779915217, 0.011513953993264481, 0.014563484775012445, 0.018420699693267165, 0.023299518105153717, 0.029470517025518096, 0.037275937203149416, 0.04714866363457394, 0.05963623316594643, 0.07543120063354623, 0.09540954763499944, 0.1206792640639329, 0.15264179671752334, 0.19306977288832497, 0.244205309454865, 0.30888435964774846, 0.3906939937054621, 0.49417133613238384, 0.6250551925273976, 0.7906043210907702, 1.0]
-    # Learning rates created by `list(np.logspace(-5, 0, num=50))`
-
-  # Control strategy: check that model does not learn significantly
-  control_adam_200:
-    program_args:
-      train_dataset_size: 200
-      optimizer: "adam"
-      output_filename: "caipi_experiment/control_adam_200.csv"
-      train_from_ground_zero: True
-
-    ce_num: [1, 2, 3, 4, 5]
-    strategy: ["pseudo"]
-    num_of_instances: [1]
-    lr: [0.003]
-
-  control_sgd_200:
-    program_args:
-      train_dataset_size: 200
-      optimizer: "sgd"
-      output_filename: "caipi_experiment/control_sgd_200.csv"
-      train_from_ground_zero: True
-
-    ce_num: [1, 2, 3, 4, 5]
-    strategy: ["pseudo"]
-    num_of_instances: [1]
-    lr: [0.07]
-
+  # Control strategy:
   control_lagrange_sgd_200:
     program_args:
       train_dataset_size: 200
@@ -137,7 +36,46 @@ specific:
   control_lagrange_adam_200:
     program_args:
       train_dataset_size: 200
-      optimizer: "sgd"
+      optimizer: "adam"
+      output_filename: "caipi_experiment/control_lagrange_adam_200.csv"
+      train_from_ground_zero: True
+      evaluate_every_nth_epoch: 1
+      fixed_lambda: True
+
+    ce_num: [1]
+    strategy: ["alternative_value"]
+    num_of_instances: [1]
+    lr: [0.003]
+    initial_lambda: [1.00000000e-10, 1.59228279e-10, 2.53536449e-10, 4.03701726e-10,
+       6.42807312e-10, 1.02353102e-09, 1.62975083e-09, 2.59502421e-09,
+       4.13201240e-09, 6.57933225e-09, 1.04761575e-08, 1.66810054e-08,
+       2.65608778e-08, 4.22924287e-08, 6.73415066e-08, 1.07226722e-07,
+       1.70735265e-07, 2.71858824e-07, 4.32876128e-07, 6.89261210e-07,
+       1.09749877e-06, 1.74752840e-06, 2.78255940e-06, 4.43062146e-06,
+       7.05480231e-06, 1.12332403e-05, 1.78864953e-05, 2.84803587e-05,
+       4.53487851e-05, 7.22080902e-05, 1.14975700e-04, 1.83073828e-04,
+       2.91505306e-04, 4.64158883e-04, 7.39072203e-04, 1.17681195e-03,
+       1.87381742e-03, 2.98364724e-03, 4.75081016e-03, 7.56463328e-03,
+       1.20450354e-02, 1.91791026e-02, 3.05385551e-02, 4.86260158e-02,
+       7.74263683e-02, 1.23284674e-01, 1.96304065e-01, 3.12571585e-01,
+       4.97702356e-01, 7.92482898e-01, 1.26185688e+00, 2.00923300e+00,
+       3.19926714e+00, 5.09413801e+00, 8.11130831e+00, 1.29154967e+01,
+       2.05651231e+01, 3.27454916e+01, 5.21400829e+01, 8.30217568e+01,
+       1.32194115e+02, 2.10490414e+02, 3.35160265e+02, 5.33669923e+02,
+       8.49753436e+02, 1.35304777e+03, 2.15443469e+03, 3.43046929e+03,
+       5.46227722e+03, 8.69749003e+03, 1.38488637e+04, 2.20513074e+04,
+       3.51119173e+04, 5.59081018e+04, 8.90215085e+04, 1.41747416e+05,
+       2.25701972e+05, 3.59381366e+05, 5.72236766e+05, 9.11162756e+05,
+       1.45082878e+06, 2.31012970e+06, 3.67837977e+06, 5.85702082e+06,
+       9.32603347e+06, 1.48496826e+07, 2.36448941e+07, 3.76493581e+07,
+       5.99484250e+07, 9.54548457e+07, 1.51991108e+08, 2.42012826e+08,
+       3.85352859e+08, 6.13590727e+08, 9.77009957e+08, 1.55567614e+09,
+       2.47707636e+09, 3.94420606e+09, 6.28029144e+09, 1.00000000e+10]
+
+  control_lagrange_adam_full:
+    program_args:
+      train_dataset_size: -1
+      optimizer: "adam"
       output_filename: "caipi_experiment/control_lagrange_adam_200.csv"
       train_from_ground_zero: True
       evaluate_every_nth_epoch: 1

@@ -45,6 +45,7 @@ label_translation = dict(zero=torch.tensor((1, 0), device=device), eight=torch.t
 # TODO remove
 classifier_target_output = ClassifierOutputTarget(1)
 # TODO
+softmax_func = torch.nn.Softmax(dim=-1)
 
 standard_aggregation = lambda input_tensor: torch.argmax(input_tensor, dim=-1)
 
@@ -100,7 +101,7 @@ class HingeLoss:
 
 class LagrangianLoss:
     def __init__(self, base_loss, model, tau, lambda_update_constant, lambda_update_interval, counterexamples, ce_labels,
-                 evaluation=False, initial_lambda=0.1):
+                 evaluation=False, initial_lambda=0.1, fixed_lambda=False):
         super().__init__()
         self.base_loss = base_loss
         self.threshold = tau
@@ -113,6 +114,7 @@ class LagrangianLoss:
 
         self.step_count = 0
         self.evaluation = evaluation
+        self.fixed_lambda = fixed_lambda
 
         self.counterexamples = counterexamples
         if not ce_labels is None:
@@ -142,7 +144,7 @@ class LagrangianLoss:
             if not self.evaluation:
                 # TODO: maybe we should count steps for each lambda individually and only if it is used in calculation
                 self.step_count += 1
-                if self.step_count % self.lambda_update_interval == 0:
+                if self.step_count % self.lambda_update_interval == 0 and not self.fixed_lambda:
                     self._update_lambdas()
             # Step 2.2: Compute hinge loss
             hinge_loss = self.hinge_loss(ce_predictions, ce_targets)
@@ -271,27 +273,36 @@ def define_parameters(inputs, targets, config_manager: ConfigManager, specific_c
         }
         return parameters_grid
 
-def write_lambdas(writer: SummaryWriter, lambdas: dict, epoch: int):
-    for key, value in lambdas.items():
-        writer.add_scalar(f"Lambda {key}/val", value, epoch)
+def write_lambdas(writer: SummaryWriter, lambdas: dict, epoch: int, counterexamples_predictions):
+    for (key, value), lambda_accuracy in zip(lambdas.items(), counterexamples_predictions.tolist()):
+        writer.add_scalar(f"Lambda value/{key}", value, epoch)
+        writer.add_scalar(f"Lambda accuracy/{key}", lambda_accuracy, epoch)
 
 
 def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, optimizer, loss_fn, original_data_size,
-                                   log_dir,
+                                   writer,
                                    threshold, no_improve_epochs_th=10, evaluate_every_nth_epoch=10):
     epoch = 0
     epochs_no_improve = 0
     best_loss = float('inf')
-    writer = SummaryWriter(
-        log_dir=log_dir)
 
     while True:
         # Step 1: Train
         loss_fn.train()
         train_loss = train_loop(train_dataloader, model, loss_fn, optimizer, device, batch_size, original_data_size)
-        # writer.add_scalar("Accuracy/train", accuracy, epoch)
+        loss_fn.evaluate()
+        metrics, avg_loss = XILUtils.test_loop(train_dataloader, model, loss_fn, device, metric='accuracy')
+        train_accuracy = metrics["accuracy"]
+        writer.add_scalar("Accuracy/train", train_accuracy, epoch)
         writer.add_scalar("Average Loss/train", train_loss, epoch)
-        write_lambdas(writer, loss_fn.lambdas, epoch)
+
+        # Get Counterexamples predictions for accuracy calculation
+        counterexamples_logits = model(loss_fn.counterexamples)
+        counterexamples_predictions = softmax_func(counterexamples_logits)[:, 1] # explicitly choosing only confidences in eights
+        # TODO: not really good for generalised solution
+
+        write_lambdas(writer, loss_fn.lambdas, epoch,
+                      counterexamples_predictions=counterexamples_predictions)
 
         # Step 2: Evaluate Now?
         if epoch % evaluate_every_nth_epoch == 0:
@@ -303,12 +314,13 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
             writer.add_scalar("Average Loss/val", avg_loss, epoch)
 
             # SubStep 2: If We Reach Set Threshold -> We Fitted and Exit
-            if acc >= threshold:
-                print(f"Reached accuracy threshold of {threshold:.2f} at epoch {epoch}.")
-                break
+            # TODO: we temporarily disable exit on reaching threshold
+            # if acc >= threshold:
+            #     print(f"Reached accuracy threshold of {threshold:.2f} at epoch {epoch}.")
+            #     break
 
         # Step 3: check if loss has significantly improved
-        if has_significant_improvement(best_loss, train_loss, relative_eps=1e-1):
+        if has_significant_improvement(best_loss, train_loss, relative_eps=1e-2):
             best_loss = train_loss
             epochs_no_improve = 0
         else:
@@ -317,12 +329,18 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
                 print(f"Stopping training after {epochs_no_improve} epochs without improvement.")
                 break
         epoch += 1
-    final_lambdas = {str(key): value for key, value in loss_fn.lambdas.items()}
-    metrics_dict = {**{"accuracy": acc,
-                       "average_loss": avg_loss, "num_of_artificial_instances": len(loss_fn.lambdas)}, **final_lambdas}
-    return metrics, avg_loss, writer
+
+    # Report to Tensorboard
+    final_lambdas = {f"Lambda {str(key)}": value for key, value in loss_fn.lambdas.items()}
+    lambda_accuracies = {f"Lambda accuracy {str(key)}": value for key, value in zip(list(loss_fn.lambdas.keys()), counterexamples_predictions)}
+
+    metrics_dict = {"test_accuracy": acc, "train_accuracy": train_accuracy,
+                   "test_average_loss": avg_loss, "num_of_artificial_instances": len(loss_fn.lambdas),
+                    **final_lambdas, **lambda_accuracies}
+    return metrics_dict, avg_loss, writer
 
 def grid_search(filename: Path, misleading_ds_train, model_confounded, test_dataloader, device, threshold, optim,
+                fixed_lambda=False,
                 evaluate_every_nth_epoch=16, from_ground_zero=False, config_manager: ConfigManager = None, specific_case: str = None):
     parameters_grid = define_parameters(misleading_ds_train.data.to(device), misleading_ds_train.labels.to(device),
                                       config_manager or ConfigManager(), specific_case)
@@ -332,31 +350,35 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
     misleading_labels = misleading_ds_train.labels.to(device)
     misleading_binary_masks = misleading_ds_train.binary_masks.to(device)
 
-
-
+    log_dir = f"runs/caipi_lagrange_experiment_{specific_case}"
+    writer = SummaryWriter(
+        log_dir=log_dir)
+    writer_global_step = 1
     records = list()
     for ce_num, strategy, num_of_instances, lr, lambda_update_constant, lambda_update_interval, initial_lambda in combinations:
+        print(f"Checking out {ce_num=}, {strategy=}, {lr=}, {num_of_instances=}, {lambda_update_constant=}, {lambda_update_interval=},"
+              f"{initial_lambda=}.")
         grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, misleading_binary_masks,
                               misleading_data, misleading_labels, model_confounded, num_of_instances, optim,
                               evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records, specific_case,
-                              lambda_update_constant, lambda_update_interval, initial_lambda)
+                              lambda_update_constant, lambda_update_interval, initial_lambda, fixed_lambda, writer, writer_global_step)
+    # After Grid Search
+    writer.close()
+
 
 def define_langarngian_loss(model, counter_examples, ce_labels, threshold, lambda_update_constant=math.sqrt(2), lambda_update_interval=5,
-                            evaluation=False, initial_lambda=0.1):
+                            evaluation=False, initial_lambda=0.1, fixed_lambda=False):
     return LagrangianLoss(torch.nn.CrossEntropyLoss(), model, threshold,
                           lambda_update_constant=lambda_update_constant, lambda_update_interval=lambda_update_interval,
                           counterexamples=counter_examples, ce_labels=ce_labels, evaluation=evaluation,
-                          initial_lambda=initial_lambda)
+                          initial_lambda=initial_lambda, fixed_lambda=fixed_lambda)
 
 
 def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, misleading_binary_masks,
                           misleading_data, misleading_labels, model_confounded, num_of_instances, optim,
                           evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records, specific_case,
-                          lambda_update_constant, lambda_update_interval, initial_lambda):
+                          lambda_update_constant, lambda_update_interval, initial_lambda, fixed_lambda, writer, writer_global_step):
     original_data_size = misleading_data.size(0)
-
-    combination_name = f"__lr_{lr}__update_constant_{lambda_update_constant}__update_interval{lambda_update_interval}"
-
     used_indices = set()
     def get_informative_instance(targets, num_of_instances, dataset_size):
         # just take some random eight
@@ -375,7 +397,6 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
         return indices
 
 
-    print(f"Checking out {ce_num=}, {strategy=}, {lr=}, {num_of_instances=}")
 
     grid_model = CNNTwoConv(num_classes, device)
     model_confounded_state_dict = model_confounded.state_dict()
@@ -389,6 +410,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
                                    lambda_update_constant=lambda_update_constant,
                                    evaluation=True,
                                    initial_lambda=initial_lambda,
+                                   fixed_lambda=fixed_lambda
                                    )
     metrics_dict, avg_loss = XILUtils.test_loop(test_dataloader, grid_model, loss, device, metric='all')
     accuracy = metrics_dict["accuracy"]
@@ -408,7 +430,6 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
         bar.update(accuracy * 1e+4)
         # Step Into Fitting Until Convergence
         while accuracy < threshold:
-            log_dir = f"runs/caipi_lagrange_experiment_{specific_case}__num_of_instances_{num_of_instances}{'_ground_zero' if from_ground_zero else ''}/{combination_name}"
             if from_ground_zero:
                 grid_model.load_state_dict(model_confounded_state_dict)
                 optimizer = define_optim(optim, grid_model, lr)
@@ -452,6 +473,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
                                            lambda_update_interval=lambda_update_interval,
                                            evaluation=True, # it will be changed in `fit_until_optimum_or_threshold`
                                            initial_lambda=initial_lambda,
+                                           fixed_lambda=fixed_lambda
                                            )
 
             num_of_artifical_instances = len(current_labels) - original_data_size
@@ -460,27 +482,29 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
             first_origin_idxs, second_origin_idxs = customBatchSampler_create_origin_indices(original_data_size, len(current_tensor_dataset))
             batch_sampler = OriginBatchSampler(first_origin_idxs, second_origin_idxs, batch_size, k)
             grid_train_dl = DataLoader(current_tensor_dataset, batch_sampler=batch_sampler)
-            log_dir = log_dir + f"__num_of_art_inst_{num_of_artifical_instances}"
+
+            # Fit until optimum
             metrics_dict, avg_loss, writer = fit_until_optimum_or_threshold(grid_model, grid_train_dl, test_dataloader, optimizer, loss, original_data_size,
-                                                                    log_dir,
+                                                                    writer,
                                                                     threshold=threshold,
                                                                     evaluate_every_nth_epoch=evaluate_every_nth_epoch)
 
+            accuracy = metrics_dict["test_accuracy"]
             writer.add_hparams(
                 {"ce_num": ce_num, "strategy": str(strategy), "lr": lr, "num_of_instances_per_epoch": num_of_instances,
                  "lambda_update_constant": lambda_update_constant,
                  "lambda_update_interval": lambda_update_interval, "initial_lambda": initial_lambda,
                  "threshold": threshold},
-                metrics_dict
+                metrics_dict,
+                global_step=writer_global_step
             )
-            writer.close()
-            torch.save(grid_model.state_dict(), f"{log_dir}/model_weights.pth")
-            accuracy = metrics_dict["accuracy"]
+            writer_global_step += 1
+            torch.save(grid_model.state_dict(), f"{writer.log_dir}/model_weights.pth")
 
             # Update ProgressBar
             bar.update(accuracy * 1e+4)
 
-            # evaluate accuracy
+            # Update CSV report
             records.append({
                 "ce_num": ce_num,
                 "strategy": str(strategy),
@@ -499,8 +523,6 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
                 "from_ground_zero": from_ground_zero,
                 "num_of_artificial_instances": num_of_artifical_instances,
             })
-            # df = pd.DataFrame(records)
-            # save_info_to_csv(filename, df) Removing it, because it takes a lot of time
             print(f"Epoch {counterexamples_epoch}: Accuracy: {100 * accuracy:.2f}%, Avg. Test Loss: {avg_loss:.4f}")
 
             if num_of_artifical_instances > original_data_size // 2:
@@ -509,6 +531,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
 
             # update epoch
             counterexamples_epoch += 1
+            break # TODO: we're forcing break temporarily, because we're not interested in more counterexamples for now
     df = pd.DataFrame(records)
     save_info_to_csv(filename, df)
 
@@ -610,6 +633,12 @@ if __name__ == "__main__":
         default=None,
         help="Specific configuration case to use from config file"
     )
+    parser.add_argument(
+        "--fixed_lambda",
+        type=bool,
+        default=None,
+        help="Whether lagrangian loss should use fixed lambda, which are equal to default value"
+    )
 
     args = parser.parse_args()
 
@@ -656,6 +685,8 @@ if __name__ == "__main__":
     k = 1
     # TODO
 
+    fixed_lambda = final_args.fixed_lambda
+
     grid_search(
         output_file,
         misleading_ds_train,
@@ -664,6 +695,7 @@ if __name__ == "__main__":
         device,
         threshold,
         optimizer,
+        fixed_lambda=fixed_lambda,
         evaluate_every_nth_epoch=final_args.evaluate_every_nth_epoch,
         from_ground_zero=final_args.train_from_ground_zero,
         config_manager=config_manager,
