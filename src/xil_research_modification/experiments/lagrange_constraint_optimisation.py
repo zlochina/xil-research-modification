@@ -281,7 +281,7 @@ def write_lambdas(writer: SummaryWriter, lambdas: dict, epoch: int, counterexamp
 
 def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, optimizer, loss_fn, original_data_size,
                                    writer,
-                                   threshold, no_improve_epochs_th=10, evaluate_every_nth_epoch=10):
+                                   threshold, no_improve_epochs_th=10, evaluate_every_nth_epoch=10, train_dl_for_evaluation=None):
     epoch = 0
     epochs_no_improve = 0
     best_loss = float('inf')
@@ -291,7 +291,7 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
         loss_fn.train()
         train_loss = train_loop(train_dataloader, model, loss_fn, optimizer, device, batch_size, original_data_size)
         loss_fn.evaluate()
-        metrics, avg_loss = XILUtils.test_loop(train_dataloader, model, loss_fn, device, metric='accuracy')
+        metrics, avg_loss = XILUtils.test_loop(train_dl_for_evaluation, model, loss_fn, device, metric='accuracy')
         train_accuracy = metrics["accuracy"]
         writer.add_scalar("Accuracy/train", train_accuracy, epoch)
         writer.add_scalar("Average Loss/train", train_loss, epoch)
@@ -353,7 +353,7 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
     log_dir = f"runs/caipi_lagrange_experiment_{specific_case}"
     writer = SummaryWriter(
         log_dir=log_dir)
-    writer_global_step = 1
+    writer_global_step = [1]
     records = list()
     for ce_num, strategy, num_of_instances, lr, lambda_update_constant, lambda_update_interval, initial_lambda in combinations:
         print(f"Checking out {ce_num=}, {strategy=}, {lr=}, {num_of_instances=}, {lambda_update_constant=}, {lambda_update_interval=},"
@@ -482,12 +482,14 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
             first_origin_idxs, second_origin_idxs = customBatchSampler_create_origin_indices(original_data_size, len(current_tensor_dataset))
             batch_sampler = OriginBatchSampler(first_origin_idxs, second_origin_idxs, batch_size, k)
             grid_train_dl = DataLoader(current_tensor_dataset, batch_sampler=batch_sampler)
+            grid_train_dl_normal = DataLoader(current_tensor_dataset, batch_size=batch_size, shuffle=False)
 
             # Fit until optimum
             metrics_dict, avg_loss, writer = fit_until_optimum_or_threshold(grid_model, grid_train_dl, test_dataloader, optimizer, loss, original_data_size,
                                                                     writer,
                                                                     threshold=threshold,
-                                                                    evaluate_every_nth_epoch=evaluate_every_nth_epoch)
+                                                                    evaluate_every_nth_epoch=evaluate_every_nth_epoch,
+                                                                            train_dl_for_evaluation=grid_train_dl_normal)
 
             accuracy = metrics_dict["test_accuracy"]
             writer.add_hparams(
@@ -496,9 +498,9 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
                  "lambda_update_interval": lambda_update_interval, "initial_lambda": initial_lambda,
                  "threshold": threshold},
                 metrics_dict,
-                global_step=writer_global_step
+                global_step=writer_global_step[0]
             )
-            writer_global_step += 1
+            writer_global_step[0] += 1
             torch.save(grid_model.state_dict(), f"{writer.log_dir}/model_weights.pth")
 
             # Update ProgressBar
