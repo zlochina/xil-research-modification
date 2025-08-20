@@ -332,10 +332,10 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
 
     # Report to Tensorboard
     final_lambdas = {f"Lambda {str(key)}": value for key, value in loss_fn.lambdas.items()}
-    lambda_accuracies = {f"Lambda accuracy {str(key)}": value for key, value in zip(list(loss_fn.lambdas.keys()), counterexamples_predictions)}
+    lambda_accuracies = {f"Lambda accuracy {str(key)}": value.cpu().item() for key, value in zip(list(loss_fn.lambdas.keys()), counterexamples_predictions)}
 
     metrics_dict = {"test_accuracy": acc, "train_accuracy": train_accuracy,
-                   "test_average_loss": avg_loss, "num_of_artificial_instances": len(loss_fn.lambdas),
+                   "test_average_loss": avg_loss, "train_average_loss": train_loss,"num_of_artificial_instances": len(loss_fn.lambdas),
                     **final_lambdas, **lambda_accuracies}
     return metrics_dict, avg_loss, writer
 
@@ -519,11 +519,10 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
 
                 "counterexamples_iteration": counterexamples_epoch,
 
-                "accuracy": float(accuracy),
-                "average_loss": float(avg_loss),
-
                 "from_ground_zero": from_ground_zero,
                 "num_of_artificial_instances": num_of_artifical_instances,
+                **metrics_dict
+
             })
             print(f"Epoch {counterexamples_epoch}: Accuracy: {100 * accuracy:.2f}%, Avg. Test Loss: {avg_loss:.4f}")
 
