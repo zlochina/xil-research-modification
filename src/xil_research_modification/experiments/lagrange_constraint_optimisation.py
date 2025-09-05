@@ -13,6 +13,7 @@ from .cnn import CNNTwoConv
 import itertools
 from ..caipi import RandomStrategy, SubstitutionStrategy, AlternativeValueStrategy, MarginalizedSubstitutionStrategy, \
     to_counter_examples_2d_pic, PseudoStrategy
+from ..training_logger import ExperimentLogger
 
 from torch.utils.data import DataLoader, TensorDataset
 import pandas as pd
@@ -23,6 +24,7 @@ from torch.utils.tensorboard import SummaryWriter
 from .caipi_grid_search import (
     save_info_to_csv, has_significant_improvement,
     define_optim, merge_config_with_args, ConfigManager)
+from datetime import datetime
 
 import math
 import torchvision.utils as vutils
@@ -80,6 +82,72 @@ def train_loop(dataloader: torch.utils.data.DataLoader, model: torch.nn.Module, 
 
     return total_loss / len(dataloader)
 
+def test_loop(dataloader, model, loss_fn, device, original_data_size,
+              prediction_agg=standard_aggregation,
+              target_agg=standard_aggregation,
+              metric='accuracy'):
+    # Prediction and Target aggregations should be such that there is a single number for correctness of the item
+    model.eval()
+    all_preds = []
+    all_targets = []
+    total_loss = 0.0
+    num_batches = len(dataloader)
+
+    with torch.no_grad():
+        for batch in dataloader:
+            batch = [item.to(device) for item in batch]
+
+            X = batch[0]
+            y = batch[1]
+            extra_args = batch[2:]  # could be empty or contain multiple tensors
+
+            logits = model(X)
+
+            # get counter_example_ids
+            counterexample_ids = [idx - original_data_size for idx in dataloader.batch_sampler.batch_second_idxs]
+            is_counter_examples_mask = torch.zeros(len(X), dtype=torch.bool)
+            is_counter_examples_mask[len(X) - k:] = 1
+
+            # Pass y plus any extra arguments to loss_fn using * unpacking
+            total_loss += loss_fn(logits, y, counterexample_ids=counterexample_ids, is_counter_examples_mask=is_counter_examples_mask, *extra_args).item()
+
+            pred_labels = prediction_agg(logits)
+            true_labels = target_agg(y)
+
+            all_preds.append(pred_labels)
+            all_targets.append(true_labels)
+
+    all_preds = torch.cat(all_preds).cpu().numpy()
+    all_targets = torch.cat(all_targets).cpu().numpy()
+    avg_loss = total_loss / num_batches
+
+    # Define supported metrics
+    metric_fns = {
+        'accuracy': accuracy_score,
+        'kappa': cohen_kappa_score,
+    }
+
+    # Normalize metric input
+    if metric == 'all':
+        selected_metrics = list(metric_fns.keys())
+    elif isinstance(metric, str):
+        selected_metrics = [metric]
+    elif isinstance(metric, list):
+        selected_metrics = metric
+    else:
+        raise ValueError("metric must be a string, list of strings, or 'all'")
+
+    results = {}
+    print("Test Error:")
+    for m in selected_metrics:
+        if m not in metric_fns:
+            raise ValueError(f"Unsupported metric: {m}")
+        score = metric_fns[m](all_targets, all_preds)
+        results[m] = score
+        print(f" {m.title()}: {score * 100:>0.1f}%")
+
+    print(f" Avg loss: {avg_loss:.6f}\n")
+    return results, avg_loss
 
 class HingeLoss:
     def __init__(self, margin=0.0, reduction=torch.sum):
@@ -152,6 +220,8 @@ class LagrangianLoss:
             ce_loss = hinge_loss * self._get_lambdas(counterexample_ids)
 
         # Step 3: Reduce to Scalar Tensor
+        self.original_data_loss = original_data_loss
+        self.ce_loss = ce_loss
         out = original_data_loss + ce_loss
         return out
 
@@ -278,6 +348,73 @@ def write_lambdas(writer: SummaryWriter, lambdas: dict, epoch: int, counterexamp
         writer.add_scalar(f"Lambda value/{key}", value, epoch)
         writer.add_scalar(f"Lambda accuracy/{key}", lambda_accuracy, epoch)
 
+def fit_until_early_stopping(model, train_dataloader, test_dataloader, validate_dataloader, optimizer, loss_fn, original_data_size,
+                                   logger: ExperimentLogger,
+                                   no_improve_epochs_th=3, evaluate_every_nth_epoch=10, train_dl_for_evaluation=None):
+    epoch = 0
+    epochs_no_improve = 0
+    best_loss = float('inf')
+    best_acc = 0
+
+    while True:
+        # Step 1: Train
+        loss_fn.train()
+        train_loss = train_loop(train_dataloader, model, loss_fn, optimizer, device, batch_size, original_data_size)
+
+        loss_fn.evaluate()
+        metrics, _ = XILUtils.test_loop(train_dl_for_evaluation, model, loss_fn, device, metric='accuracy')
+        train_accuracy = metrics["accuracy"]
+
+        logger.log_training_metrics(epoch, train_loss, train_accuracy, loss_fn.original_data_loss.item(),
+                                    loss_fn.ce_loss.item() if torch.is_tensor(loss_fn.ce_loss) else loss_fn.ce_loss)
+
+        # Get Counterexamples predictions for accuracy calculation
+        counterexamples_logits = model(loss_fn.counterexamples)
+        counterexamples_predictions = softmax_func(counterexamples_logits)[:, 1] # explicitly choosing only confidences in eights
+
+        logger.log_lambda_values(epoch, loss_fn.lambdas, counterexamples_predictions)
+
+        # Step 2: Evaluate Now?
+        if epoch % evaluate_every_nth_epoch == 0:
+            # SubStep 1: Get Metrics data
+            loss_fn.evaluate()
+            metrics, avg_loss = XILUtils.test_loop(test_dataloader, model, loss_fn, device, metric='accuracy')
+            test_acc = metrics["accuracy"]
+            logger.log_test_metrics(epoch, test_acc, avg_loss,
+                                    loss_fn.original_data_loss.item(),
+                                    loss_fn.ce_loss.item() if torch.is_tensor(loss_fn.ce_loss) else loss_fn.ce_loss)
+
+        # Step 3: check if loss has significantly improved
+        loss_fn.evaluate()
+        validation_metrics, validate_loss = XILUtils.test_loop(validate_dataloader, model, loss_fn, device, metric='accuracy')
+        validation_acc = validation_metrics["accuracy"]
+        logger.log_validation_metrics(epoch, validation_acc, validate_loss)
+
+        # if validate_loss < best_loss:
+        #     best_loss = validate_loss
+        # TODO: check with functionality of `has_significant_improvement`
+        if validation_acc > best_acc:
+            best_acc = validation_acc
+            epochs_no_improve = 0
+
+            # Not saving for now
+            # logger.save_model_checkpoint(model.state_dict(), epoch)
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= no_improve_epochs_th:
+                print(f"Stopping training after {epochs_no_improve} epochs without improvement.")
+                break
+        epoch += 1
+
+    # Report to Tensorboard
+    final_lambdas = {f"Lambda {str(key)}": value for key, value in loss_fn.lambdas.items()}
+    lambda_accuracies = {f"Lambda accuracy {str(key)}": value.cpu().item()
+                         for key, value in zip(list(loss_fn.lambdas.keys()), counterexamples_predictions)}
+
+    metrics_dict = {"test_accuracy": test_acc, "train_accuracy": train_accuracy,
+                    "test_average_loss": avg_loss, "train_average_loss": train_loss,"num_of_artificial_instances": len(loss_fn.lambdas),
+                    **final_lambdas, **lambda_accuracies}
+    return metrics_dict, avg_loss
 
 def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, optimizer, loss_fn, original_data_size,
                                    writer,
@@ -291,10 +428,12 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
         loss_fn.train()
         train_loss = train_loop(train_dataloader, model, loss_fn, optimizer, device, batch_size, original_data_size)
         loss_fn.evaluate()
-        metrics, avg_loss = XILUtils.test_loop(train_dl_for_evaluation, model, loss_fn, device, metric='accuracy')
+        metrics, _ = XILUtils.test_loop(train_dl_for_evaluation, model, loss_fn, device, metric='accuracy')
         train_accuracy = metrics["accuracy"]
         writer.add_scalar("Accuracy/train", train_accuracy, epoch)
         writer.add_scalar("Average Loss/train", train_loss, epoch)
+        writer.add_scalar("Last batch Loss Original data/train", loss_fn.original_data_loss, epoch)
+        writer.add_scalar("Last batch Loss CE loss/train", loss_fn.ce_loss, epoch)
 
         # Get Counterexamples predictions for accuracy calculation
         counterexamples_logits = model(loss_fn.counterexamples)
@@ -310,8 +449,10 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
             loss_fn.evaluate()
             metrics, avg_loss = XILUtils.test_loop(test_dataloader, model, loss_fn, device, metric='accuracy')
             acc = metrics["accuracy"]
-            writer.add_scalar("Accuracy/val", acc, epoch)
-            writer.add_scalar("Average Loss/val", avg_loss, epoch)
+            writer.add_scalar("Accuracy/test", acc, epoch)
+            writer.add_scalar("Average Loss/test", avg_loss, epoch)
+            writer.add_scalar("Last batch Loss Original data/test", loss_fn.original_data_loss, epoch)
+            writer.add_scalar("Last batch Loss CE loss/test", loss_fn.ce_loss, epoch)
 
             # SubStep 2: If We Reach Set Threshold -> We Fitted and Exit
             # TODO: we temporarily disable exit on reaching threshold
@@ -339,7 +480,7 @@ def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, opt
                     **final_lambdas, **lambda_accuracies}
     return metrics_dict, avg_loss, writer
 
-def grid_search(filename: Path, misleading_ds_train, model_confounded, test_dataloader, device, threshold, optim,
+def grid_search(filename: Path, misleading_ds_train, model_confounded, test_dataloader, validate_dataloader, device, threshold, optim,
                 fixed_lambda=False,
                 evaluate_every_nth_epoch=16, from_ground_zero=False, config_manager: ConfigManager = None, specific_case: str = None):
     parameters_grid = define_parameters(misleading_ds_train.data.to(device), misleading_ds_train.labels.to(device),
@@ -350,20 +491,68 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
     misleading_labels = misleading_ds_train.labels.to(device)
     misleading_binary_masks = misleading_ds_train.binary_masks.to(device)
 
-    log_dir = f"runs/caipi_lagrange_experiment_{specific_case}"
-    writer = SummaryWriter(
-        log_dir=log_dir)
-    writer_global_step = [1]
+    # Create experiment logger
+    experiment_name = f"caipi_lagrange_{specific_case or 'default'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    logger = ExperimentLogger(base_log_dir="runs", experiment_name=experiment_name)
     records = list()
-    for ce_num, strategy, num_of_instances, lr, lambda_update_constant, lambda_update_interval, initial_lambda in combinations:
-        print(f"Checking out {ce_num=}, {strategy=}, {lr=}, {num_of_instances=}, {lambda_update_constant=}, {lambda_update_interval=},"
-              f"{initial_lambda=}.")
-        grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, misleading_binary_masks,
-                              misleading_data, misleading_labels, model_confounded, num_of_instances, optim,
-                              evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records, specific_case,
-                              lambda_update_constant, lambda_update_interval, initial_lambda, fixed_lambda, writer, writer_global_step)
-    # After Grid Search
-    writer.close()
+    for combo_id, (ce_num, strategy, num_of_instances, lr, lambda_update_constant, lambda_update_interval, initial_lambda) in enumerate(combinations):
+        # Create combination parameters dict
+        combination_params = {
+            'ce_num': ce_num,
+            'strategy': strategy,
+            'num_of_instances': num_of_instances,
+            'lr': lr,
+            'lambda_update_constant': lambda_update_constant,
+            'lambda_update_interval': lambda_update_interval,
+            'initial_lambda': initial_lambda,
+            'threshold': threshold,
+            'fixed_lambda': fixed_lambda,
+            'from_ground_zero': from_ground_zero
+        }
+        # Create combination parameters dict
+        combination_params = {
+            'ce_num': ce_num,
+            'strategy': strategy,
+            'num_of_instances': num_of_instances,
+            'lr': lr,
+            'lambda_update_constant': lambda_update_constant,
+            'lambda_update_interval': lambda_update_interval,
+            'initial_lambda': initial_lambda,
+            'threshold': threshold,
+            'fixed_lambda': fixed_lambda,
+            'from_ground_zero': from_ground_zero
+        }
+
+        # Create writer for this combination
+        writer = logger.create_combination_writer(combination_params, combo_id)
+
+        print(f"\nCombination {combo_id + 1}/{len(combinations)}")
+        print(f"Parameters: ce_num={ce_num}, strategy={strategy}, lr={lr}, "
+              f"num_of_instances={num_of_instances}, lambda_update_constant={lambda_update_constant}, "
+              f"lambda_update_interval={lambda_update_interval}, initial_lambda={initial_lambda}")
+        print(f"Logging to: {writer.log_dir}")
+
+        try:
+            iteration_records = grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, misleading_binary_masks,
+                                  misleading_data, misleading_labels, model_confounded, num_of_instances, optim,
+                                  evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records, specific_case,
+                                  lambda_update_constant, lambda_update_interval, initial_lambda, fixed_lambda, logger, validate_dataloader)
+
+            if iteration_records:
+                final_record = iteration_records[-1]
+                logger.log_final_results(final_record)
+        except Exception as e:
+            print(f"Error in combination {combo_id}: {str(e)}")
+            writer.add_text("error", str(e))
+        finally:
+            logger.close_current_writer()
+    print("\n" + "=" * 50)
+    print("EXPERIMENT COMPLETED")
+    print("=" * 50)
+    print(logger.get_experiment_summary())
+
+    return records
+
 
 
 def define_langarngian_loss(model, counter_examples, ce_labels, threshold, lambda_update_constant=math.sqrt(2), lambda_update_interval=5,
@@ -377,7 +566,7 @@ def define_langarngian_loss(model, counter_examples, ce_labels, threshold, lambd
 def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, misleading_binary_masks,
                           misleading_data, misleading_labels, model_confounded, num_of_instances, optim,
                           evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records, specific_case,
-                          lambda_update_constant, lambda_update_interval, initial_lambda, fixed_lambda, writer, writer_global_step):
+                          lambda_update_constant, lambda_update_interval, initial_lambda, fixed_lambda, logger, validate_dl):
     original_data_size = misleading_data.size(0)
     used_indices = set()
     def get_informative_instance(targets, num_of_instances, dataset_size):
@@ -481,27 +670,19 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
             current_tensor_dataset = TensorDataset(current_data, current_labels)
             first_origin_idxs, second_origin_idxs = customBatchSampler_create_origin_indices(original_data_size, len(current_tensor_dataset))
             batch_sampler = OriginBatchSampler(first_origin_idxs, second_origin_idxs, batch_size, k)
+
             grid_train_dl = DataLoader(current_tensor_dataset, batch_sampler=batch_sampler)
             grid_train_dl_normal = DataLoader(current_tensor_dataset, batch_size=batch_size, shuffle=False)
 
             # Fit until optimum
-            metrics_dict, avg_loss, writer = fit_until_optimum_or_threshold(grid_model, grid_train_dl, test_dataloader, optimizer, loss, original_data_size,
-                                                                    writer,
-                                                                    threshold=threshold,
+            metrics_dict, avg_loss = fit_until_early_stopping(grid_model, grid_train_dl, test_dataloader, validate_dl,
+                                                                      optimizer, loss, original_data_size,
+                                                                    logger,
                                                                     evaluate_every_nth_epoch=evaluate_every_nth_epoch,
                                                                             train_dl_for_evaluation=grid_train_dl_normal)
 
             accuracy = metrics_dict["test_accuracy"]
-            writer.add_hparams(
-                {"ce_num": ce_num, "strategy": str(strategy), "lr": lr, "num_of_instances_per_epoch": num_of_instances,
-                 "lambda_update_constant": lambda_update_constant,
-                 "lambda_update_interval": lambda_update_interval, "initial_lambda": initial_lambda,
-                 "threshold": threshold},
-                metrics_dict,
-                global_step=writer_global_step[0]
-            )
-            writer_global_step[0] += 1
-            torch.save(grid_model.state_dict(), f"{writer.log_dir}/model_weights.pth")
+            torch.save(grid_model.state_dict(), f"{logger.current_writer.log_dir}/model_weights.pth")
 
             # Update ProgressBar
             bar.update(accuracy * 1e+4)
@@ -675,7 +856,16 @@ if __name__ == "__main__":
     model_confounded = model_confounded.to(device)
 
     ds_test = torch.load(current_directory / "data/08MNIST/original/test.pth", weights_only=False) # TensorDataset
-    test_dataloader = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
+
+    from torch.utils.data import random_split
+
+    test_length = len(ds_test)
+    length_test = test_length // 2
+    length_validate = test_length - length_test
+    validate_ds, test_ds = random_split(ds_test, [length_validate, length_test])
+
+    test_dataloader = DataLoader(test_ds, batch_size=batch_size, shuffle=True)
+    validate_dataloader = DataLoader(validate_ds, batch_size=batch_size, shuffle=True)
 
     threshold = final_args.threshold
     output_file = final_args.output_filename\
@@ -693,6 +883,7 @@ if __name__ == "__main__":
         misleading_ds_train,
         model_confounded,
         test_dataloader,
+        validate_dataloader,
         device,
         threshold,
         optimizer,
