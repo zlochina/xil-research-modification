@@ -11,6 +11,7 @@ general:
     train_from_ground_zero: true
     train_dataset_size: 1000
     output_filename: "caipi_expr/default_experiment.csv"
+    no_lagrange: False
 
   # Grid search hyperparameters (default values)
   ce_num: [1, 2, 3, 4, 5]
@@ -204,3 +205,96 @@ specific:
                      2.05651231e+01, 3.27454916e+01, 5.21400829e+01, 8.30217568e+01,
                      1.32194115e+02, 2.10490414e+02, 3.35160265e+02, 5.33669923e+02,
                      8.49753436e+02, 1.35304777e+03]
+
+  clear_lagrange_sgd_200:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "sgd"
+      output_filename: "caipi_experiment/no_vs_lagrange/clear_lagrange_sgd_200.csv"
+      train_from_ground_zero: True
+      evaluate_every_nth_epoch: 1
+      fixed_lambda: True
+
+    ce_num: [1]
+    strategy: ["alternative_value"]
+    num_of_instances: [1]
+    lr: [0.07]
+    initial_lambda: [1]
+
+  no_lagrange_sgd_200:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "sgd"
+      output_filename: "caipi_experiment/no_vs_lagrange/no_lagrange_sgd_200.csv"
+      train_from_ground_zero: True
+      evaluate_every_nth_epoch: 1
+      fixed_lambda: True
+      no_lagrange: True
+
+    ce_num: [1]
+    strategy: ["alternative_value"]
+    num_of_instances: [1]
+    lr: [0.07]
+    initial_lambda: [1]
+
+  clear_lagrange_adam_200:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "adam"
+      output_filename: "caipi_experiment/no_vs_lagrange/clear_lagrange_adam_200.csv"
+      train_from_ground_zero: True
+      evaluate_every_nth_epoch: 1
+      fixed_lambda: True
+
+    ce_num: [1]
+    strategy: ["alternative_value"]
+    num_of_instances: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100]
+    lr: [0.07]
+    initial_lambda: [1]
+
+  no_lagrange_adam_200:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "adam"
+      output_filename: "caipi_experiment/no_vs_lagrange/no_lagrange_adam_200.csv"
+      train_from_ground_zero: True
+      evaluate_every_nth_epoch: 1
+      fixed_lambda: True
+      no_lagrange: True
+
+    ce_num: [1]
+    strategy: ["alternative_value"]
+    num_of_instances: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100]
+    lr: [0.07]
+    initial_lambda: [1]
+
+  clear_lagrange_adam_200_no_ground_zero:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "adam"
+      output_filename: "caipi_experiment/no_vs_lagrange/clear_lagrange_adam_200_no_ground_zero.csv"
+      train_from_ground_zero: False
+      evaluate_every_nth_epoch: 1
+      fixed_lambda: True
+
+    ce_num: [1]
+    strategy: ["alternative_value"]
+    num_of_instances: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100]
+    lr: [0.07]
+    initial_lambda: [1]
+
+  no_lagrange_adam_200_no_ground_zero:
+    program_args:
+      train_dataset_size: 200
+      optimizer: "adam"
+      output_filename: "caipi_experiment/no_vs_lagrange/no_lagrange_adam_200_no_ground_zero.csv"
+      train_from_ground_zero: False
+      evaluate_every_nth_epoch: 1
+      fixed_lambda: True
+      no_lagrange: True
+
+    ce_num: [1]
+    strategy: ["alternative_value"]
+    num_of_instances: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100]
+    lr: [0.07]
+    initial_lambda: [1]

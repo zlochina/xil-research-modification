@@ -1,5 +1,6 @@
 from pathlib import Path
 from types import NoneType
+import traceback
 
 import torch
 
@@ -63,9 +64,11 @@ def train_loop(dataloader: torch.utils.data.DataLoader, model: torch.nn.Module, 
         # Compute prediction and loss
         pred = model(X)
         # get counter_example_ids
-        counterexample_ids = [idx - original_data_size for idx in dataloader.batch_sampler.batch_second_idxs]
+        counterexample_ids = None
         is_counter_examples_mask = torch.zeros(len(X), dtype=torch.bool)
-        is_counter_examples_mask[len(X) - k:] = 1
+        if not no_lagrange:
+            is_counter_examples_mask[len(X) - k:] = 1
+            counterexample_ids = [idx - original_data_size for idx in dataloader.batch_sampler.batch_second_idxs]
         loss = loss_fn(pred, y, is_counter_examples_mask, counterexample_ids)
 
         # Backpropagation
@@ -543,6 +546,7 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
                 logger.log_final_results(final_record)
         except Exception as e:
             print(f"Error in combination {combo_id}: {str(e)}")
+            print(traceback.print_exc())
             writer.add_text("error", str(e))
         finally:
             logger.close_current_writer()
@@ -821,6 +825,12 @@ if __name__ == "__main__":
         default=None,
         help="Whether lagrangian loss should use fixed lambda, which are equal to default value"
     )
+    parser.add_argument(
+        "--no_lagrange",
+        type=bool,
+        default=None,
+        help="Use CrossEntropyLoss instead of LagrangianLoss"
+    )
 
     args = parser.parse_args()
 
@@ -871,6 +881,8 @@ if __name__ == "__main__":
     output_file = final_args.output_filename\
         if isinstance(final_args.output_filename, Path) else Path(final_args.output_filename)
     optimizer = final_args.optimizer
+
+    no_lagrange = final_args.no_lagrange
 
     # TODO: replace hardcoded part
     k = 1
