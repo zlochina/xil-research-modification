@@ -353,8 +353,11 @@ def write_lambdas(writer: SummaryWriter, lambdas: dict, epoch: int, counterexamp
 
 def fit_until_early_stopping(model, train_dataloader, test_dataloader, validate_dataloader, optimizer, loss_fn, original_data_size,
                                    logger: ExperimentLogger,
-                                   no_improve_epochs_th=3, evaluate_every_nth_epoch=10, train_dl_for_evaluation=None):
-    epoch = 0
+                                   no_improve_epochs_th=3, evaluate_every_nth_epoch=10, train_dl_for_evaluation=None, start_epoch=None):
+    if start_epoch:
+        epoch = start_epoch
+    else:
+        epoch = 0
     epochs_no_improve = 0
     best_loss = float('inf')
     best_acc = 0
@@ -417,7 +420,7 @@ def fit_until_early_stopping(model, train_dataloader, test_dataloader, validate_
     metrics_dict = {"test_accuracy": test_acc, "train_accuracy": train_accuracy,
                     "test_average_loss": avg_loss, "train_average_loss": train_loss,"num_of_artificial_instances": len(loss_fn.lambdas),
                     **final_lambdas, **lambda_accuracies}
-    return metrics_dict, avg_loss
+    return metrics_dict, avg_loss, epoch
 
 def fit_until_optimum_or_threshold(model, train_dataloader, test_dataloader, optimizer, loss_fn, original_data_size,
                                    writer,
@@ -512,19 +515,6 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
             'fixed_lambda': fixed_lambda,
             'from_ground_zero': from_ground_zero
         }
-        # Create combination parameters dict
-        combination_params = {
-            'ce_num': ce_num,
-            'strategy': strategy,
-            'num_of_instances': num_of_instances,
-            'lr': lr,
-            'lambda_update_constant': lambda_update_constant,
-            'lambda_update_interval': lambda_update_interval,
-            'initial_lambda': initial_lambda,
-            'threshold': threshold,
-            'fixed_lambda': fixed_lambda,
-            'from_ground_zero': from_ground_zero
-        }
 
         # Create writer for this combination
         writer = logger.create_combination_writer(combination_params, combo_id)
@@ -541,9 +531,9 @@ def grid_search(filename: Path, misleading_ds_train, model_confounded, test_data
                                   evaluate_every_nth_epoch, strategy, test_dataloader, threshold, records, specific_case,
                                   lambda_update_constant, lambda_update_interval, initial_lambda, fixed_lambda, logger, validate_dataloader)
 
-            if iteration_records:
-                final_record = iteration_records[-1]
-                logger.log_final_results(final_record)
+            # if iteration_records:
+            #     final_record = iteration_records[-1]
+            #     logger.log_final_results(final_record)
         except Exception as e:
             print(f"Error in combination {combo_id}: {str(e)}")
             print(traceback.print_exc())
@@ -616,6 +606,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
     counterexamples_epoch = 1
     duplicate_informative_instances_iteration = 0
 
+    start_epoch = 0
     target_layers = [grid_model[3]]
 
     with progressbar.ProgressBar(widgets=widgets, max_value=1e+4) as bar:
@@ -679,11 +670,12 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
             grid_train_dl_normal = DataLoader(current_tensor_dataset, batch_size=batch_size, shuffle=False)
 
             # Fit until optimum
-            metrics_dict, avg_loss = fit_until_early_stopping(grid_model, grid_train_dl, test_dataloader, validate_dl,
+            metrics_dict, avg_loss, start_epoch = fit_until_early_stopping(grid_model, grid_train_dl, test_dataloader, validate_dl,
                                                                       optimizer, loss, original_data_size,
                                                                     logger,
                                                                     evaluate_every_nth_epoch=evaluate_every_nth_epoch,
-                                                                            train_dl_for_evaluation=grid_train_dl_normal)
+                                                                            train_dl_for_evaluation=grid_train_dl_normal,
+                                                              start_epoch=start_epoch + 1)
 
             accuracy = metrics_dict["test_accuracy"]
             torch.save(grid_model.state_dict(), f"{logger.current_writer.log_dir}/model_weights.pth")
@@ -707,8 +699,8 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
                 "from_ground_zero": from_ground_zero,
                 "num_of_artificial_instances": num_of_artifical_instances,
                 **metrics_dict
-
             })
+            logger.log_final_results(records[-1])
             print(f"Epoch {counterexamples_epoch}: Accuracy: {100 * accuracy:.2f}%, Avg. Test Loss: {avg_loss:.4f}")
 
             if num_of_artifical_instances > original_data_size // 2:
@@ -717,7 +709,7 @@ def grid_search_iteration(ce_num, device, filename, from_ground_zero, lr, mislea
 
             # update epoch
             counterexamples_epoch += 1
-            break # TODO: we're forcing break temporarily, because we're not interested in more counterexamples for now
+            # break # TODO: we're forcing break temporarily, because we're not interested in more counterexamples for now
     df = pd.DataFrame(records)
     save_info_to_csv(filename, df)
 
