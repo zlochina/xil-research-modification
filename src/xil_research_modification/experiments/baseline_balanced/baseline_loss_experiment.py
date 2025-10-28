@@ -3,7 +3,7 @@ import torch.nn as nn
 import itertools
 import argparse
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader, random_split, Subset
 from torch.utils.tensorboard import SummaryWriter
@@ -35,9 +35,19 @@ class UserCorrectedDataset(Dataset):
         self.device = device
 
         # Extract only class 8 instances (the confounded class)
-        inputs = confounded_dataset.tensors[0]
-        labels = confounded_dataset.tensors[1]
-        masks = confounded_dataset.tensors[2]
+        if isinstance(confounded_dataset, Subset):
+            dataset = confounded_dataset.dataset
+            indices = confounded_dataset.indices
+
+            inputs = dataset.tensors[0][indices]
+            labels = dataset.tensors[1][indices]
+            masks = dataset.tensors[2][indices]
+        elif isinstance(confounded_dataset, torch.utils.data.TensorDataset):
+            inputs = confounded_dataset.tensors[0]
+            labels = confounded_dataset.tensors[1]
+            masks = confounded_dataset.tensors[2]
+        else:
+            raise RuntimeError(f"Type of `confounded_dataset`={type(confounded_dataset)}, which is not handled...")
 
         # Filter for class 8: labels are one-hot, so class 8 is [0, 1]
         is_class_eight = (labels[:, 1] == 1)
@@ -148,7 +158,7 @@ class CombinedDataset(Dataset):
             # From corrected dataset (returns 2 tensors: input, label)
             corr_idx = idx - self.confounded_size
             inp, label = self.corrected[corr_idx]
-            # # Add dummy mask (not used, but keeps batch structure consistent)
+            # Add dummy mask (not used, but keeps batch structure consistent)
             dummy_mask = torch.zeros_like(inp)
             return inp, label, dummy_mask
 
@@ -238,7 +248,7 @@ def create_is_user_corrected_mask(batch_size: int, user_corrected_per_batch: int
 
 def train_one_epoch(model: nn.Module, dataloader: DataLoader, loss_fn: nn.Module,
                     optimizer: torch.optim.Optimizer, device: str,
-                    user_corrected_per_batch: int, epoch: int, writer: SummaryWriter) -> Tuple[float, float]:
+                    user_corrected_per_batch: int, global_epoch: int, writer: SummaryWriter) -> Tuple[float, float]:
     """
     Train for one epoch.
 
@@ -288,16 +298,16 @@ def train_one_epoch(model: nn.Module, dataloader: DataLoader, loss_fn: nn.Module
     accuracy = correct / total
 
     # Log to TensorBoard (per epoch)
-    writer.add_scalar('Loss/train_epoch', avg_loss, epoch)
-    writer.add_scalar('Loss/train_confounded', avg_conf_loss, epoch)
-    writer.add_scalar('Loss/train_corrected', avg_corr_loss, epoch)
-    writer.add_scalar('Accuracy/train_epoch', accuracy, epoch)
+    writer.add_scalar('Loss/train_epoch', avg_loss, global_epoch)
+    writer.add_scalar('Loss/train_confounded', avg_conf_loss, global_epoch)
+    writer.add_scalar('Loss/train_corrected', avg_corr_loss, global_epoch)
+    writer.add_scalar('Accuracy/train_epoch', accuracy, global_epoch)
 
     return avg_loss, accuracy
 
 
 def evaluate(model: nn.Module, dataloader: DataLoader, loss_fn: nn.Module,
-             device: str, epoch: int, writer: SummaryWriter,
+             device: str, global_epoch: int, writer: SummaryWriter,
              split_name: str = 'val') -> Tuple[float, float]:
     """
     Evaluate model on validation or test set.
@@ -348,10 +358,11 @@ def evaluate(model: nn.Module, dataloader: DataLoader, loss_fn: nn.Module,
     accuracy = correct / total
 
     # Log to TensorBoard
-    writer.add_scalar(f'Loss/{split_name}_epoch', avg_loss, epoch)
-    writer.add_scalar(f'Accuracy/{split_name}_epoch', accuracy, epoch)
+    writer.add_scalar(f'Loss/{split_name}_epoch', avg_loss, global_epoch)
+    writer.add_scalar(f'Accuracy/{split_name}_epoch', accuracy, global_epoch)
 
     return avg_loss, accuracy
+
 
 def log_example_images(model: nn.Module, confounded_dataset, corrected_dataset,
                        writer: SummaryWriter, device: str, num_examples: int = 8):
@@ -364,9 +375,19 @@ def log_example_images(model: nn.Module, confounded_dataset, corrected_dataset,
     model.eval()
 
     # Sample confounded examples (class 8 only)
-    conf_inputs = confounded_dataset.tensors[0]
-    conf_labels = confounded_dataset.tensors[1]
-    conf_masks = confounded_dataset.tensors[2]
+    if isinstance(confounded_dataset, Subset):
+        dataset = confounded_dataset.dataset
+        indices = confounded_dataset.indices
+
+        conf_inputs = dataset.tensors[0][indices]
+        conf_labels = dataset.tensors[1][indices]
+        conf_masks = dataset.tensors[2][indices]
+    elif isinstance(confounded_dataset, torch.utils.data.TensorDataset):
+        conf_inputs = confounded_dataset.tensors[0]
+        conf_labels = confounded_dataset.tensors[1]
+        conf_masks = confounded_dataset.tensors[2]
+    else:
+        raise RuntimeError(f"Type of `confounded_dataset`={type(confounded_dataset)}, which is not handled...")
 
     is_class_eight = (conf_labels[:, 1] == 1)
     eight_indices = torch.where(is_class_eight)[0][:num_examples]
@@ -403,34 +424,45 @@ def fit_until_early_stopping(model: nn.Module, train_loader: DataLoader, val_loa
                              loss_fn: nn.Module, optimizer: torch.optim.Optimizer,
                              device: str, user_corrected_per_batch: int,
                              patience: int, writer: SummaryWriter,
-                             confounded_dataset, corrected_dataset) -> Dict[str, float]:
+                             confounded_dataset, corrected_dataset,
+                             global_epoch_start: int, num_user_corrected: int) -> Tuple[Dict[str, float], int]:
     """
     Train until early stopping criterion is met.
 
+    Args:
+        global_epoch_start: Starting epoch number for TensorBoard logging
+        num_user_corrected: Current number of corrected instances per batch (for logging)
+
     Returns:
         metrics: Dict with final train/val accuracy and loss
+        final_global_epoch: Final epoch number (for next iteration)
     """
     best_val_loss = float('inf')
     epochs_no_improve = 0
-    epoch = 0
+    local_epoch = 0
+    global_epoch = global_epoch_start
 
     while True:
+        # Log current num_user_corrected configuration (creates step function in TensorBoard)
+        writer.add_scalar('Config/num_user_corrected', num_user_corrected, global_epoch)
+
         # Train
         train_loss, train_acc = train_one_epoch(
             model, train_loader, loss_fn, optimizer, device,
-            user_corrected_per_batch, epoch, writer
+            user_corrected_per_batch, global_epoch, writer
         )
 
         # Validate
         val_loss, val_acc = evaluate(
-            model, val_loader, loss_fn, device, epoch, writer, split_name='val'
+            model, val_loader, loss_fn, device, global_epoch, writer, split_name='val'
         )
 
-        print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Train Acc={train_acc:.4f}, "
+        print(f"Global Epoch {global_epoch} (Local {local_epoch}, num_corrected={num_user_corrected}): "
+              f"Train Loss={train_loss:.4f}, Train Acc={train_acc:.4f}, "
               f"Val Loss={val_loss:.4f}, Val Acc={val_acc:.4f}")
 
-        # Log example images every 10 epochs
-        if epoch % 10 == 0:
+        # Log example images every 10 global epochs
+        if global_epoch % 10 == 0:
             log_example_images(model, confounded_dataset, corrected_dataset, writer, device)
 
         # Early stopping check
@@ -442,30 +474,34 @@ def fit_until_early_stopping(model: nn.Module, train_loader: DataLoader, val_loa
         else:
             epochs_no_improve += 1
             if epochs_no_improve >= patience:
-                print(f"Early stopping after {epoch} epochs (no improvement for {patience} epochs)")
+                print(f"Early stopping at global epoch {global_epoch} "
+                      f"(no improvement for {patience} epochs)")
                 break
 
-        epoch += 1
+        local_epoch += 1
+        global_epoch += 1
 
     # Load best model
     model.load_state_dict(torch.load(f"{writer.log_dir}/best_model.pth", weights_only=True))
 
     # Final evaluation
     final_train_loss, final_train_acc = evaluate(
-        model, train_loader, loss_fn, device, epoch, writer, split_name='train_final'
+        model, train_loader, loss_fn, device, global_epoch, writer, split_name='train_final'
     )
     final_val_loss, final_val_acc = evaluate(
-        model, val_loader, loss_fn, device, epoch, writer, split_name='val_final'
+        model, val_loader, loss_fn, device, global_epoch, writer, split_name='val_final'
     )
 
-    return {
+    metrics = {
         'train_loss': final_train_loss,
         'train_accuracy': final_train_acc,
         'val_loss': final_val_loss,
         'val_accuracy': final_val_acc,
-        'epochs_trained': epoch,
+        'local_epochs_trained': local_epoch,
         'best_val_loss': best_val_loss
     }
+
+    return metrics, global_epoch
 
 
 # ============================================================================
@@ -474,16 +510,19 @@ def fit_until_early_stopping(model: nn.Module, train_loader: DataLoader, val_loa
 
 def grid_search_iteration(config: Dict[str, Any], confounded_train_ds, val_loader, test_loader,
                           base_model_state_dict, device: str, num_classes: int,
-                          hyperparams: Dict[str, Any], experiment_name: str) -> Dict[str, Any]:
+                          hyperparams: Dict[str, Any], experiment_name: str) -> List[Dict[str, Any]]:
     """
-    Single hyperparameter combination experiment.
+    Single hyperparameter combination experiment with progressive corrected instance increase.
+
+    Returns:
+        List of results, one dict per num_user_corrected iteration
     """
     lr = hyperparams['learning_rate']
     loss_type = hyperparams['loss_type']
     lambda_weight = hyperparams['lambda_weight']
     pool_size = hyperparams['user_corrected_pool_size']
 
-    # Create log directory
+    # Create log directory (shared across all num_user_corrected iterations)
     run_name = f"lr{lr}_loss{loss_type}_lambda{lambda_weight}_pool{pool_size}"
     log_dir = Path(config['tensorboard_log_dir']) / run_name
     writer = SummaryWriter(log_dir=str(log_dir))
@@ -492,18 +531,7 @@ def grid_search_iteration(config: Dict[str, Any], confounded_train_ds, val_loade
     print(f"Starting: {run_name}")
     print(f"{'=' * 80}")
 
-    # Create user-corrected dataset
-    corrected_ds = UserCorrectedDataset(confounded_train_ds, pool_size, device)
-
-    # Create combined dataset and mixed batch sampler
-    combined_ds = CombinedDataset(confounded_train_ds, corrected_ds)
-    batch_sampler = MixedBatchSampler(
-        len(confounded_train_ds), len(corrected_ds),
-        config['batch_size'], config['user_corrected_max_per_batch']
-    )
-    train_loader = DataLoader(combined_ds, batch_sampler=batch_sampler)
-
-    # Initialize model from base
+    # Initialize model from base (only once per hyperparameter combination)
     model = CNNTwoConv(num_classes, device)
     model.load_state_dict(base_model_state_dict)
     model = model.to(device)
@@ -520,20 +548,82 @@ def grid_search_iteration(config: Dict[str, Any], confounded_train_ds, val_loade
     # optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    # Train
-    metrics = fit_until_early_stopping(
-        model, train_loader, val_loader, loss_fn, optimizer, device,
-        config['user_corrected_max_per_batch'], config['early_stopping_patience'],
-        writer, confounded_train_ds, corrected_ds
-    )
+    # Create user-corrected dataset (pool) - fixed for this hyperparameter combination
+    corrected_ds = UserCorrectedDataset(confounded_train_ds, pool_size, device)
 
-    # Evaluate on test set
-    test_loss, test_acc = evaluate(model, test_loader, loss_fn, device,
-                                   metrics['epochs_trained'], writer, split_name='test')
-    metrics['test_loss'] = test_loss
-    metrics['test_accuracy'] = test_acc
+    # Progressive training loop
+    results = []
+    num_user_corrected = 1  # Start with 1 corrected instance per batch
+    global_epoch = 0
+    max_user_corrected = config.get('max_user_corrected_per_batch', config['batch_size'] - 1)
 
-    # Log hyperparameters and final metrics to TensorBoard
+    while True:
+        print(f"\n{'-' * 80}")
+        print(f"Progressive Training: num_user_corrected = {num_user_corrected}")
+        print(f"{'-' * 80}")
+
+        # Create combined dataset and mixed batch sampler for current num_user_corrected
+        combined_ds = CombinedDataset(confounded_train_ds, corrected_ds)
+        ## Important line!!!!!!!
+        user_corrected_per_batch = config['user_corrected_max_per_batch']\
+            if num_user_corrected > config['user_corrected_max_per_batch'] else num_user_corrected
+        #
+
+        batch_sampler = MixedBatchSampler(
+            len(confounded_train_ds), len(corrected_ds),
+            config['batch_size'], user_corrected_per_batch
+        )
+        train_loader = DataLoader(combined_ds, batch_sampler=batch_sampler)
+
+        # Train until early stopping with current configuration
+        metrics, global_epoch = fit_until_early_stopping(
+            model, train_loader, val_loader, loss_fn, optimizer, device,
+            num_user_corrected, config['early_stopping_patience'],
+            writer, confounded_train_ds, corrected_ds,
+            global_epoch, num_user_corrected
+        )
+
+        # Evaluate on test set
+        test_loss, test_acc = evaluate(model, test_loader, loss_fn, device,
+                                       global_epoch, writer, split_name='test')
+        metrics['test_loss'] = test_loss
+        metrics['test_accuracy'] = test_acc
+
+        # Record results for this iteration
+        iteration_result = {
+            'learning_rate': lr,
+            'loss_type': loss_type,
+            'lambda_weight': lambda_weight,
+            'pool_size': pool_size,
+            'num_user_corrected': num_user_corrected,
+            'global_epochs_total': global_epoch,
+            **metrics
+        }
+        results.append(iteration_result)
+
+        print(f"\nIteration Result: Val Acc={metrics['val_accuracy']:.4f}, "
+              f"Test Acc={test_acc:.4f}, Global Epochs={global_epoch}")
+
+        # Check if threshold reached
+        if test_acc >= config['accuracy_threshold']:
+            print(f"\n{'=' * 80}")
+            print(f"Threshold {config['accuracy_threshold']:.2%} reached!")
+            print(f"Final test accuracy: {test_acc:.4f}")
+            print(f"{'=' * 80}")
+            break
+
+        # Check if max corrected instances reached
+        if num_user_corrected >= max_user_corrected:
+            print(f"\n{'=' * 80}")
+            print(f"Max corrected instances per batch ({max_user_corrected}) reached")
+            print(f"Final test accuracy: {test_acc:.4f}")
+            print(f"{'=' * 80}")
+            break
+
+        # Increment and continue
+        num_user_corrected += 1
+
+    # Log final hyperparameters summary to TensorBoard
     hparam_dict = {
         'lr': lr,
         'loss_type': loss_type,
@@ -541,20 +631,21 @@ def grid_search_iteration(config: Dict[str, Any], confounded_train_ds, val_loade
         'pool_size': pool_size
     }
     metric_dict = {
-        'hparam/val_accuracy': metrics['val_accuracy'],
-        'hparam/test_accuracy': metrics['test_accuracy'],
-        'hparam/val_loss': metrics['val_loss']
+        'hparam/final_test_accuracy': test_acc,
+        'hparam/final_val_accuracy': metrics['val_accuracy'],
+        'hparam/num_corrected_at_convergence': num_user_corrected,
+        'hparam/total_epochs': global_epoch
     }
     writer.add_hparams(hparam_dict, metric_dict)
 
     writer.close()
 
-    # Return results with hyperparameters
-    result = {**hyperparams, **metrics}
-    return result
+    return results
 
 
-def main(config_path: Path, experiment_name: str):
+def main(args):
+    config_path: Path = args.config
+    experiment_name: str = args.experiment
     """Main experiment loop."""
     # Load config
     config_manager = ConfigManager(config_path, experiment_name)
@@ -617,7 +708,7 @@ def main(config_path: Path, experiment_name: str):
     print(f"Total combinations to evaluate: {len(combinations)}\n")
 
     # Run grid search
-    results = []
+    all_results = []
     for combo in combinations:
         hyperparams = {
             'learning_rate': combo[0],
@@ -626,23 +717,16 @@ def main(config_path: Path, experiment_name: str):
             'user_corrected_pool_size': combo[3]
         }
 
-        result = grid_search_iteration(
+        # Returns list of results (one per num_user_corrected iteration)
+        iteration_results = grid_search_iteration(
             config, train_ds, val_loader, test_loader,
             base_model_state_dict, device, num_classes,
             hyperparams, experiment_name
         )
-        results.append(result)
-
-        # Check if we've reached accuracy threshold
-        if result['val_accuracy'] >= config['accuracy_threshold']:
-            print(f"\n{'=' * 80}")
-            print(f"Reached accuracy threshold of {config['accuracy_threshold']:.2%}!")
-            print(f"Stopping grid search.")
-            print(f"{'=' * 80}\n")
-            break
+        all_results.extend(iteration_results)  # Flatten into single list
 
     # Save results to CSV
-    df = pd.DataFrame(results)
+    df = pd.DataFrame(all_results)
     output_path = Path(config['output_filename'])
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_path, index=False)
@@ -652,12 +736,14 @@ def main(config_path: Path, experiment_name: str):
     print(f"\n{'=' * 80}")
     print("EXPERIMENT SUMMARY")
     print(f"{'=' * 80}")
-    print(f"\nBest validation accuracy: {df['val_accuracy'].max():.4f}")
-    best_idx = df['val_accuracy'].idxmax()
+    print(f"\nTotal hyperparameter combinations tested: {len(combinations)}")
+    print(f"Total iterations (across all combinations): {len(df)}")
+    print(f"\nBest test accuracy: {df['test_accuracy'].max():.4f}")
+    best_idx = df['test_accuracy'].idxmax()
     print(f"Best hyperparameters:")
-    for key in ['learning_rate', 'loss_type', 'lambda_weight', 'user_corrected_pool_size']:
+    for key in ['learning_rate', 'loss_type', 'lambda_weight', 'pool_size', 'num_user_corrected']:
         print(f"  {key}: {df.loc[best_idx, key]}")
-    print(f"\nCorresponding test accuracy: {df.loc[best_idx, 'test_accuracy']:.4f}")
+    print(f"Global epochs to reach best: {df.loc[best_idx, 'global_epochs_total']}")
     print(f"{'=' * 80}\n")
 
 
@@ -709,4 +795,4 @@ Example Usage:
     # TODO: Implement command-line overrides if needed
     # For now, just use config file
 
-    main(args.config, args.experiment)
+    main(args)

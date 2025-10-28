@@ -6,6 +6,7 @@ general:
   program_args:
     batch_size: 64
     user_corrected_max_per_batch: 4
+    max_user_corrected_per_batch: 10 # Maximum corrected instances per batch before giving up
     validate_ds_size: 0.4  # Fraction of test set used for validation
     early_stopping_patience: 10  # Epochs without improvement before stopping
     accuracy_threshold: 0.95  # Stop grid search if this accuracy is reached
@@ -18,7 +19,7 @@ general:
   lambda_weight: [1.0]  # Weight for user-corrected samples in BaselineBalancedLoss
   user_corrected_pool_size: [100]  # Number of pre-generated corrected instances
 
-experiments:
+specific:
   # Quick sanity check: overfit on tiny dataset
   overfit_test:
     program_args:
@@ -36,7 +37,7 @@ experiments:
     user_corrected_pool_size: [50]  # Small pool for testing
 
   # Find optimal learning rate with fixed other params
-  lr_search:
+  lr_search_balanced:
     program_args:
       batch_size: 64
       user_corrected_max_per_batch: 4
@@ -48,7 +49,20 @@ experiments:
 
     learning_rate: [0.1, 0.07, 0.05, 0.01, 0.007, 0.005, 0.001, 0.0001]
     loss_type: ["balanced"]  # Fix loss type
-    lambda_weight: [1.0]  # Fix lambda
+    user_corrected_pool_size: [100]
+
+  lr_search_imbalanced:
+    program_args:
+      batch_size: 64
+      user_corrected_max_per_batch: 4
+      early_stopping_patience: 10
+      accuracy_threshold: 0.95
+      output_filename: "experiments/lr_search.csv"
+      tensorboard_log_dir: "runs/lr_search"
+      train_dataset_size: 1000  # Subset for faster iteration
+
+    learning_rate: [0.1, 0.07, 0.05, 0.01, 0.007, 0.005, 0.001, 0.0001]
+    loss_type: ["imbalanced"]  # Fix loss type
     user_corrected_pool_size: [100]
 
   # Search over lambda weight (for BaselineBalancedLoss)
