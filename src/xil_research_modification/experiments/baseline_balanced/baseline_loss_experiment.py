@@ -9,9 +9,9 @@ from torch.utils.data import Dataset, DataLoader, random_split, Subset
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.utils as vutils
 
-from src.xil_research_modification.experiments.cnn import CNNTwoConv
-from src.xil_research_modification.utils import XILUtils
-from src.xil_research_modification.experiments.caipi_grid_search import ConfigManager
+from ..cnn import CNNTwoConv
+from ...utils import XILUtils
+from ..caipi_grid_search import ConfigManager
 
 
 # ============================================================================
@@ -466,7 +466,7 @@ def fit_until_early_stopping(model: nn.Module, train_loader: DataLoader, val_loa
             log_example_images(model, confounded_dataset, corrected_dataset, writer, device)
 
         # Early stopping check
-        if val_loss < best_val_loss - 1e-4:  # Require significant improvement
+        if val_loss < best_val_loss - 1e-2:  # Require significant improvement
             best_val_loss = val_loss
             epochs_no_improve = 0
             # Save best model checkpoint
