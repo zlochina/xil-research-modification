@@ -15,6 +15,67 @@ from ..caipi_grid_search import ConfigManager
 
 
 # ============================================================================
+# CSV LOGGING UTILITIES
+# ============================================================================
+
+def find_next_run_number(base_path: Path) -> int:
+    """
+    Find the next available run number by checking existing CSV files.
+
+    Thread-safe for SLURM: Uses atomic file creation to reserve the run number.
+
+    Args:
+        base_path: Base path without _runX.csv suffix
+
+    Returns:
+        Next available run number (1-indexed)
+    """
+    run_num = 1
+    while True:
+        candidate_path = base_path.parent / f"{base_path.stem}_run{run_num}.csv"
+
+        # Try to create the file exclusively (atomic operation)
+        # This prevents race conditions between SLURM jobs
+        try:
+            # 'x' mode fails if file exists (atomic check-and-create)
+            with open(candidate_path, 'x') as f:
+                # Write CSV header immediately to reserve the file
+                f.write("run,learning_rate,loss_type,lambda_weight,pool_size,"
+                        "num_user_corrected,global_epoch,local_epoch,"
+                        "train_loss,train_conf_loss,train_corr_loss,train_accuracy,"
+                        "val_loss,val_accuracy\n")
+            return run_num
+        except FileExistsError:
+            # File already exists, try next number
+            run_num += 1
+            if run_num > 1000:  # Safety check
+                raise RuntimeError("Too many run files (>1000). Please clean up old runs.")
+
+
+def append_epoch_to_csv(csv_path: Path, epoch_data: Dict[str, Any]):
+    """
+    Append a single epoch's metrics to the CSV file.
+
+    Args:
+        csv_path: Path to CSV file
+        epoch_data: Dictionary with all metrics for this epoch
+    """
+    # Ensure all required fields are present
+    required_fields = [
+        'run', 'learning_rate', 'loss_type', 'lambda_weight', 'pool_size',
+        'num_user_corrected', 'global_epoch', 'local_epoch',
+        'train_loss', 'train_conf_loss', 'train_corr_loss', 'train_accuracy',
+        'val_loss', 'val_accuracy'
+    ]
+
+    row = [str(epoch_data.get(field, '')) for field in required_fields]
+
+    # Append to CSV (thread-safe for SLURM as each job writes to different file)
+    with open(csv_path, 'a') as f:
+        f.write(','.join(row) + '\n')
+
+
+# ============================================================================
 # DATASET CLASSES
 # ============================================================================
 
@@ -248,12 +309,14 @@ def create_is_user_corrected_mask(batch_size: int, user_corrected_per_batch: int
 
 def train_one_epoch(model: nn.Module, dataloader: DataLoader, loss_fn: nn.Module,
                     optimizer: torch.optim.Optimizer, device: str,
-                    user_corrected_per_batch: int, global_epoch: int, writer: SummaryWriter) -> Tuple[float, float]:
+                    user_corrected_per_batch: int, global_epoch: int, writer: SummaryWriter) -> Tuple[float, float, float, float]:
     """
     Train for one epoch.
 
     Returns:
-        avg_loss: Average loss over all batches
+        avg_loss: Average total loss over all batches
+        avg_conf_loss: Average confounded loss
+        avg_corr_loss: Average corrected loss
         accuracy: Training accuracy
     """
     model.train()
@@ -303,8 +366,7 @@ def train_one_epoch(model: nn.Module, dataloader: DataLoader, loss_fn: nn.Module
     writer.add_scalar('Loss/train_corrected', avg_corr_loss, global_epoch)
     writer.add_scalar('Accuracy/train_epoch', accuracy, global_epoch)
 
-    return avg_loss, accuracy
-
+    return avg_loss, avg_conf_loss, avg_corr_loss, accuracy  # Added conf and corr losses
 
 def evaluate(model: nn.Module, dataloader: DataLoader, loss_fn: nn.Module,
              device: str, global_epoch: int, writer: SummaryWriter,
@@ -425,13 +487,18 @@ def fit_until_early_stopping(model: nn.Module, train_loader: DataLoader, val_loa
                              device: str, user_corrected_per_batch: int,
                              patience: int, writer: SummaryWriter,
                              confounded_dataset, corrected_dataset,
-                             global_epoch_start: int, num_user_corrected: int) -> Tuple[Dict[str, float], int]:
+                             global_epoch_start: int, num_user_corrected: int,
+                             csv_path: Path, hyperparams: Dict[str, Any],
+                             run_number: int) -> Tuple[Dict[str, float], int]:
     """
     Train until early stopping criterion is met.
 
     Args:
         global_epoch_start: Starting epoch number for TensorBoard logging
         num_user_corrected: Current number of corrected instances per batch (for logging)
+        csv_path: Path to CSV file for logging
+        hyperparams: Dictionary with hyperparameters for this run
+        run_number: Run number for CSV logging
 
     Returns:
         metrics: Dict with final train/val accuracy and loss
@@ -447,7 +514,7 @@ def fit_until_early_stopping(model: nn.Module, train_loader: DataLoader, val_loa
         writer.add_scalar('Config/num_user_corrected', num_user_corrected, global_epoch)
 
         # Train
-        train_loss, train_acc = train_one_epoch(
+        train_loss, train_conf_loss, train_corr_loss, train_acc = train_one_epoch(
             model, train_loader, loss_fn, optimizer, device,
             user_corrected_per_batch, global_epoch, writer
         )
@@ -460,6 +527,28 @@ def fit_until_early_stopping(model: nn.Module, train_loader: DataLoader, val_loa
         print(f"Global Epoch {global_epoch} (Local {local_epoch}, num_corrected={num_user_corrected}): "
               f"Train Loss={train_loss:.4f}, Train Acc={train_acc:.4f}, "
               f"Val Loss={val_loss:.4f}, Val Acc={val_acc:.4f}")
+
+        # ============================================================
+        # NEW: Log this epoch to CSV
+        # ============================================================
+        epoch_data = {
+            'run': run_number,
+            'learning_rate': hyperparams['learning_rate'],
+            'loss_type': hyperparams['loss_type'],
+            'lambda_weight': hyperparams['lambda_weight'],
+            'pool_size': hyperparams['user_corrected_pool_size'],
+            'num_user_corrected': num_user_corrected,
+            'global_epoch': global_epoch,
+            'local_epoch': local_epoch,
+            'train_loss': train_loss,
+            'train_conf_loss': train_conf_loss,
+            'train_corr_loss': train_corr_loss,
+            'train_accuracy': train_acc,
+            'val_loss': val_loss,
+            'val_accuracy': val_acc
+        }
+        append_epoch_to_csv(csv_path, epoch_data)
+        # ============================================================
 
         # Log example images every 10 global epochs
         if global_epoch % 10 == 0:
@@ -503,16 +592,20 @@ def fit_until_early_stopping(model: nn.Module, train_loader: DataLoader, val_loa
 
     return metrics, global_epoch
 
-
 # ============================================================================
 # EXPERIMENT MANAGEMENT
 # ============================================================================
 
 def grid_search_iteration(config: Dict[str, Any], confounded_train_ds, val_loader, test_loader,
                           base_model_state_dict, device: str, num_classes: int,
-                          hyperparams: Dict[str, Any], experiment_name: str) -> List[Dict[str, Any]]:
+                          hyperparams: Dict[str, Any], experiment_name: str,
+                          csv_path: Path, run_number: int) -> List[Dict[str, Any]]:
     """
     Single hyperparameter combination experiment with progressive corrected instance increase.
+
+    Args:
+        csv_path: Path to CSV file for logging
+        run_number: Run number for this experiment
 
     Returns:
         List of results, one dict per num_user_corrected iteration
@@ -576,11 +669,13 @@ def grid_search_iteration(config: Dict[str, Any], confounded_train_ds, val_loade
         train_loader = DataLoader(combined_ds, batch_sampler=batch_sampler)
 
         # Train until early stopping with current configuration
+        # NEW: Pass csv_path, hyperparams, and run_number
         metrics, global_epoch = fit_until_early_stopping(
             model, train_loader, val_loader, loss_fn, optimizer, device,
             num_user_corrected, config['early_stopping_patience'],
             writer, confounded_train_ds, corrected_ds,
-            global_epoch, num_user_corrected
+            global_epoch, num_user_corrected,
+            csv_path, hyperparams, run_number  # NEW
         )
 
         # Evaluate on test set
@@ -651,6 +746,21 @@ def main(args):
     config_manager = ConfigManager(config_path, experiment_name)
     config = config_manager.get_program_args_from_config()
 
+    # ============================================================
+    # NEW: Set up CSV file with automatic run numbering
+    # ============================================================
+    output_base_path = Path(config['output_filename'])
+    run_number = find_next_run_number(output_base_path)
+    csv_path = output_base_path.parent / f"{output_base_path.stem}_run{run_number}.csv"
+
+    print(f"\n{'=' * 80}")
+    print(f"CSV Logging Setup")
+    print(f"{'=' * 80}")
+    print(f"Output file: {csv_path}")
+    print(f"Run number: {run_number}")
+    print(f"{'=' * 80}\n")
+    # ============================================================
+
     # Define constants
     current_directory = Path(__file__).parent
     num_classes = 2
@@ -718,34 +828,49 @@ def main(args):
         }
 
         # Returns list of results (one per num_user_corrected iteration)
+        # NEW: Pass csv_path and run_number
         iteration_results = grid_search_iteration(
             config, train_ds, val_loader, test_loader,
             base_model_state_dict, device, num_classes,
-            hyperparams, experiment_name
+            hyperparams, experiment_name,
+            csv_path, run_number  # NEW
         )
         all_results.extend(iteration_results)  # Flatten into single list
 
-    # Save results to CSV
-    df = pd.DataFrame(all_results)
-    output_path = Path(config['output_filename'])
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(output_path, index=False)
-    print(f"\nResults saved to {output_path}")
+    # ============================================================
+    # REMOVED: Old CSV saving code (now done per-epoch)
+    # df = pd.DataFrame(all_results)
+    # output_path = Path(config['output_filename'])
+    # output_path.parent.mkdir(parents=True, exist_ok=True)
+    # df.to_csv(output_path, index=False)
+    # print(f"\nResults saved to {output_path}")
+    # ============================================================
 
-    # Print summary
+    # Print summary (read from CSV to verify)
     print(f"\n{'=' * 80}")
     print("EXPERIMENT SUMMARY")
     print(f"{'=' * 80}")
-    print(f"\nTotal hyperparameter combinations tested: {len(combinations)}")
-    print(f"Total iterations (across all combinations): {len(df)}")
-    print(f"\nBest test accuracy: {df['test_accuracy'].max():.4f}")
-    best_idx = df['test_accuracy'].idxmax()
-    print(f"Best hyperparameters:")
-    for key in ['learning_rate', 'loss_type', 'lambda_weight', 'pool_size', 'num_user_corrected']:
-        print(f"  {key}: {df.loc[best_idx, key]}")
-    print(f"Global epochs to reach best: {df.loc[best_idx, 'global_epochs_total']}")
-    print(f"{'=' * 80}\n")
 
+    # Read the CSV we just wrote
+    df = pd.read_csv(csv_path)
+
+    print(f"\nTotal hyperparameter combinations tested: {len(combinations)}")
+    print(f"Total epochs logged: {len(df)}")
+    print(f"CSV saved to: {csv_path}")
+
+    # Group by hyperparameters to find best final accuracy
+    final_epochs = df.groupby(['learning_rate', 'loss_type', 'lambda_weight',
+                               'pool_size', 'num_user_corrected']).tail(1)
+
+    if len(final_epochs) > 0:
+        best_idx = final_epochs['val_accuracy'].idxmax()
+        print(f"\nBest validation accuracy: {df.loc[best_idx, 'val_accuracy']:.4f}")
+        print(f"Best hyperparameters:")
+        for key in ['learning_rate', 'loss_type', 'lambda_weight', 'pool_size', 'num_user_corrected']:
+            print(f"  {key}: {df.loc[best_idx, key]}")
+        print(f"Global epoch: {df.loc[best_idx, 'global_epoch']}")
+
+    print(f"{'=' * 80}\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
