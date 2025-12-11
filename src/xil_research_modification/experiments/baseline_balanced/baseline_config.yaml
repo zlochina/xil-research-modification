@@ -150,3 +150,18 @@ specific:
     loss_type: ["imbalanced"]
     lambda_weight: [1.0, 2.0]  # Best from lambda_search
     user_corrected_pool_size: [100, 500]  # Compare pool sizes
+
+  balanced_grid_search_wo_ce:
+    program_args:
+      batch_size: 64
+      user_corrected_max_per_batch: 0
+      early_stopping_patience: 15
+      accuracy_threshold: 0.95
+      output_filename: "experiments/balanced_grid_search.csv"
+      tensorboard_log_dir: "runs/balanced_grid_search"
+      train_dataset_size: -1  # Use full dataset
+
+    learning_rate: [0.01, 0.001]  # Best 2 from lr_search
+    loss_type: ["balanced"]
+    lambda_weight: [1.0, 2.0]  # Best from lambda_search
+    user_corrected_pool_size: [100, 500]  # Compare pool sizes
