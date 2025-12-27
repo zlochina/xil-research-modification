@@ -21,7 +21,7 @@ model:
 # Phase 1: Hyperparameter Optimization
 phase1:
   n_iterations: 100  # Number of random samples from hyperparameter space
-  n_runs: 5  # Cross-validation runs per configuration
+  n_runs: 1  # Cross-validation runs per configuration
   n_init_corrections: 5  # Initial number of user-corrected instances
 
   # Hyperparameter search space (log-uniform sampling)
@@ -53,7 +53,7 @@ phase1:
     early_stopping:
       monitor: "val_loss"
       patience: 10
-      min_delta: 0.0
+      min_delta: 0.0001
 
     # Loss function
     loss:
