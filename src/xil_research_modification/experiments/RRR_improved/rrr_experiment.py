@@ -14,7 +14,7 @@ from datetime import datetime
 from lovely_tensors import monkey_patch
 monkey_patch()
 
-from torch.utils.data import DataLoader, TensorDataset, Subset
+from torch.utils.data import DataLoader, TensorDataset, Subset, WeightedRandomSampler
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 
@@ -49,6 +49,36 @@ class EarlyStopping:
                 self.early_stop = True
 
         return self.early_stop
+
+
+def create_oversampled_loader(dataset: TensorDataset, corrected_indices: List[int], batch_size: int,
+                              shuffle: bool = True) -> DataLoader:
+    """
+    Create DataLoader that oversamples corrected instances to appear in every batch.
+
+    Strategy: Give corrected instances higher sampling weight so they appear frequently.
+    If we have N total samples and k corrected instances, and want k instances in every batch,
+    we need each corrected instance to appear ~(N/k) times more frequently.
+    """
+    n_samples = len(dataset)
+    k = len(corrected_indices)
+
+    # Calculate weights
+    weights = torch.ones(n_samples, dtype=torch.float32)
+
+    # Oversample corrected instances
+    # Target: each corrected instance appears in most batches
+    oversample_factor = max(1.0, n_samples / (k * batch_size))
+    weights[corrected_indices] = oversample_factor
+
+    # Create sampler
+    sampler = WeightedRandomSampler(
+        weights=weights,
+        num_samples=n_samples,
+        replacement=True
+    )
+
+    return DataLoader(dataset, batch_size=batch_size, sampler=sampler)
 
 
 def set_seed(seed: int):
@@ -89,6 +119,13 @@ def load_data(config: Dict, script_dir: Path) -> Tuple[TensorDataset, TensorData
         script_dir / config['data']['confounded_train'],
         weights_only=False
     )
+
+    # Subset train dataset if specified
+    train_size = config['data'].get('train_dataset_size', -1)
+    if train_size > 0:
+        indices = torch.randperm(len(confounded_train))[:train_size]
+        confounded_train = Subset(confounded_train, indices.tolist())
+
     confounded_test = torch.load(
         script_dir / config['data']['confounded_test'],
         weights_only=False
@@ -98,50 +135,69 @@ def load_data(config: Dict, script_dir: Path) -> Tuple[TensorDataset, TensorData
         weights_only=False
     )
 
-    # # turn on requires_grad for each tensor
-    # tensors_to_work_through = [*confounded_train.tensors, *confounded_test.tensors, *original_test.tensors]
-    # for tensor in tensors_to_work_through:
-    #     tensor.requires_grad = True
-
     return confounded_train, confounded_test, original_test
 
 
-def sample_corrected_instances(dataset: TensorDataset, k: int, device: str) -> Tuple[torch.Tensor, List[int]]:
+def sample_corrected_instances(dataset, k: int, device: str) -> List[int]:
     """
     Sample k instances from eights (label=[0,1]) and return their indices
 
     Returns:
-        indices: List of k sampled indices
+        indices: List of k sampled indices (in dataset coordinate system)
     """
-    labels = dataset.tensors[1]
+    # Handle Subset wrapper
+    if isinstance(dataset, Subset):
+        labels = dataset.dataset.tensors[1][dataset.indices]
+        base_indices = dataset.indices
+    else:
+        labels = dataset.tensors[1]
+        base_indices = list(range(len(labels)))
 
     # Find all eight indices (label = [0, 1])
     eight_mask = (labels[:, 1] == 1)
-    eight_indices = torch.where(eight_mask)[0].cpu().numpy()
+    eight_positions = torch.where(eight_mask)[0].cpu().numpy()
 
     # Sample k random eights
-    sampled_indices = np.random.choice(eight_indices, size=k, replace=False)
+    sampled_positions = np.random.choice(eight_positions, size=k, replace=False)
 
-    return sampled_indices.tolist()
+    # Map back to dataset indices
+    sampled_indices = [base_indices[pos] for pos in sampled_positions]
+
+    return sampled_indices
 
 
-def create_masked_dataset(dataset: TensorDataset, corrected_indices: List[int], device: str) -> TensorDataset:
+def create_masked_dataset(dataset, corrected_indices: List[int], device: str) -> Tuple[TensorDataset, List[int]]:
     """
     Create dataset with binary masks:
     - Use actual masks for corrected_indices
     - Use zero masks for all other instances
+
+    Returns:
+        TensorDataset: Dataset with masked data
+        List[int]: Corrected indices in the returned dataset's coordinate system
     """
-    inputs = dataset.tensors[0]
-    labels = dataset.tensors[1]
-    masks = dataset.tensors[2]
+    # Handle Subset wrapper
+    if isinstance(dataset, Subset):
+        inputs = dataset.dataset.tensors[0][dataset.indices]
+        labels = dataset.dataset.tensors[1][dataset.indices]
+        masks = dataset.dataset.tensors[2][dataset.indices]
+
+        # Map corrected_indices from original dataset space to subset space
+        index_mapping = {orig_idx: subset_idx for subset_idx, orig_idx in enumerate(dataset.indices)}
+        corrected_subset_indices = [index_mapping[idx] for idx in corrected_indices if idx in index_mapping]
+    else:
+        inputs = dataset.tensors[0]
+        labels = dataset.tensors[1]
+        masks = dataset.tensors[2]
+        corrected_subset_indices = corrected_indices
 
     # Create zero masks for all instances
     masked_dataset_masks = torch.zeros_like(masks)
 
     # Set actual masks for corrected instances
-    masked_dataset_masks[corrected_indices] = masks[corrected_indices]
+    masked_dataset_masks[corrected_subset_indices] = masks[corrected_subset_indices]
 
-    return TensorDataset(inputs, labels, masked_dataset_masks)
+    return TensorDataset(inputs, labels, masked_dataset_masks), corrected_subset_indices
 
 
 def train_epoch(model, dataloader, optimizer, loss_fn, device):
@@ -271,7 +327,7 @@ def phase1_single_run(
     corrected_indices = sample_corrected_instances(train_dataset, k, device)
 
     # Create dataset with appropriate masks
-    masked_train_dataset = create_masked_dataset(train_dataset, corrected_indices, device)
+    masked_train_dataset, _ = create_masked_dataset(train_dataset, corrected_indices, device)
 
     # Create dataloaders
     batch_size = config['phase1']['training']['batch_size']

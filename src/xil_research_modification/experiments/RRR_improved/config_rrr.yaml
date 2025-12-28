@@ -11,6 +11,7 @@ data:
   confounded_train: "08MNIST/confounded_v1/train.pth"
   confounded_test: "08MNIST/confounded_v1/test.pth"  # Used as validation
   original_test: "08MNIST/original/test.pth"
+  train_dataset_size: 1000  # -1 for full dataset, or specify number
 
 # Model architecture
 model:
@@ -21,7 +22,7 @@ model:
 # Phase 1: Hyperparameter Optimization
 phase1:
   n_iterations: 100  # Number of random samples from hyperparameter space
-  n_runs: 1  # Cross-validation runs per configuration
+  n_runs: 5  # Cross-validation runs per configuration
   n_init_corrections: 5  # Initial number of user-corrected instances
 
   # Hyperparameter search space (log-uniform sampling)
@@ -37,8 +38,8 @@ phase1:
       scale: "log"
 
     learning_rate:
-      min: 1.0e-5
-      max: 0.1
+      min: 1.0e-4
+      max: 0.01
       scale: "log"
 
   # Training configuration
