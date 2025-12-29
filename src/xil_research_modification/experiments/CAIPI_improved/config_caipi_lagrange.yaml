@@ -33,7 +33,7 @@ phase1:
 
     lambda_lagrange:
       min: 1.0e-3
-      max: 1.0e3
+      max: 1.0e+3
       scale: "log"
 
     modification_strategy: ["random", "substitution", "alternative_value"]

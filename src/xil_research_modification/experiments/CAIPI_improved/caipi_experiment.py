@@ -825,7 +825,7 @@ def phase2_sensitivity_analysis(config: Dict, best_hyperparams: Dict, device: st
     print("PHASE 2 SUMMARY:")
     print("=" * 60)
     for _, row in df.iterrows():
-        print(f"k={row['k']:3d}: {row['avg_test_acc'] * 100:5.2f}% ± {row['std_test_acc'] * 100:4.2f}%")
+        print(f"k={row['k']:3f}: {row['avg_test_acc'] * 100:5.2f}% ± {row['std_test_acc'] * 100:4.2f}%")
     print("=" * 60)
 
 
