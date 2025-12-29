@@ -491,7 +491,7 @@ def phase2_single_run(
     corrected_indices = sample_corrected_instances(train_dataset, k, device)
 
     # Create dataset with appropriate masks
-    masked_train_dataset = create_masked_dataset(train_dataset, corrected_indices, device)
+    masked_train_dataset, _ = create_masked_dataset(train_dataset, corrected_indices, device)
 
     # Create dataloaders
     batch_size = config['phase2']['training']['batch_size']
@@ -502,6 +502,8 @@ def phase2_single_run(
     # Initialize model
     model = CNNTwoConv(config['model']['num_classes'], device)
     model = model.to(device)
+
+    model.load_state_dict(torch.load(Path(__file__).parent / config['data']['model_weights'], weights_only=True))
 
     # Initialize optimizer with best lr
     optimizer = Adam(
@@ -602,7 +604,7 @@ def phase2_sensitivity_analysis(config: Dict, best_hyperparams: Dict, device: st
     print("PHASE 2 SUMMARY:")
     print("=" * 60)
     for _, row in df.iterrows():
-        print(f"k={row['k']:3d}: {row['avg_test_acc'] * 100:5.2f}% ± {row['std_test_acc'] * 100:4.2f}%")
+        print(f"k={row['k']:3f}: {row['avg_test_acc'] * 100:5.2f}% ± {row['std_test_acc'] * 100:4.2f}%")
     print("=" * 60)
 
 
