@@ -1,0 +1,69 @@
+# CAIPI Experiment Configuration - Balanced Loss
+# Equal weight to original and counterexamples
+
+experiment:
+  name: "caipi_balanced_mnist"
+  output_dir: "caipi_output"
+  random_seed_base: 42
+
+data:
+  confounded_train: "08MNIST/confounded_v1/train.pth"
+  confounded_test: "08MNIST/confounded_v1/test.pth"
+  original_test: "08MNIST/original/test.pth"
+  model_weights: "model_confounded.pth"
+  train_dataset_size: 1000
+
+model:
+  type: "CNNTwoConv"
+  num_classes: 2
+
+counterexample:
+  ce_num: 1
+
+phase1:
+  n_iterations: 100
+  n_runs: 5
+  n_init_corrections: 5
+
+  hyperparameters:
+    learning_rate:
+      min: 1.0e-4
+      max: 0.01
+      scale: "log"
+
+    modification_strategy: ["random", "substitution", "alternative_value"]
+
+  training:
+    batch_size: 64
+    max_epochs: 100
+    optimizer: "adam"
+    optimizer_params:
+      betas: [0.9, 0.999]
+
+    early_stopping:
+      monitor: "val_loss"
+      patience: 10
+      min_delta: 0.0001
+
+phase2:
+  k_range: [1, 2, 5, 10, 20, 50, 100]
+  n_runs: 5
+
+  training:
+    batch_size: 64
+    max_epochs: 100
+    optimizer: "adam"
+    optimizer_params:
+      betas: [0.9, 0.999]
+
+    early_stopping:
+      monitor: "val_loss"
+      patience: 10
+      min_delta: 0.0
+
+logging:
+  tensorboard: true
+  tensorboard_dir: "runs/caipi_balanced"
+  csv_output: true
+  save_best_model: true
+  log_interval: 10
