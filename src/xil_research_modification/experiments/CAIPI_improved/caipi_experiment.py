@@ -30,6 +30,30 @@ from ...caipi import (
 )
 
 
+class ModelSaver():
+    def __init__(self):
+        self.accuracies = dict()
+        self.run = 0
+
+    def iterate(self):
+        self.run += 1
+
+    def save_model(self, model):
+        model_path = self.output_dir / f'model_{self.id}.pth'
+        torch.save(model.state_dict(), model_path)
+
+    def set_id(self, id):
+        self.id = id
+
+    def set_output_dir(self, output_dir):
+        self.output_dir = output_dir
+
+    def reset(self):
+        self.run = 0
+        self.accuracies = dict()
+        # reset id
+
+
 # ============================================================================
 # Loss Functions (from your baseline implementations)
 # ============================================================================
@@ -469,6 +493,7 @@ def train_with_early_stopping(
 
         # Track best
         if test_acc > best_test_acc:
+            model_saver.save_model(model)
             best_test_acc = test_acc
 
         # Early stopping check
@@ -547,6 +572,8 @@ def phase1_single_run(
     else:
         raise ValueError(f"Unknown loss variant: {loss_variant}")
 
+    model_saver.set_id(f"{loss_variant}_run{run_id}_{hash(str(hyperparams))}")
+    model_saver.iterate()
     # Train with early stopping
     best_test_acc, final_test_acc = train_with_early_stopping(
         model, optimizer, loss_fn, loss_variant,
@@ -743,6 +770,8 @@ def phase2_single_run(
         raise ValueError(f"Unknown loss variant: {loss_variant}")
 
     # Train with early stopping
+    model_saver.set_id(f"{loss_variant}_k{k}_run{run_id}")
+    model_saver.iterate()
     best_test_acc, final_test_acc = train_with_early_stopping(
         model, optimizer, loss_fn, loss_variant,
         train_loader, val_loader, test_loader,
@@ -800,6 +829,8 @@ def phase2_sensitivity_analysis(config: Dict, best_hyperparams: Dict, device: st
 
             if writer:
                 writer.close()
+
+        model_saver.reset()
 
         # Store results
         avg_test_acc = np.mean(run_results)
@@ -870,6 +901,8 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Output directory: {output_dir}")
 
+    model_saver.set_output_dir(output_dir)
+
     # Save config
     with open(output_dir / 'config.yaml', 'w') as f:
         yaml.dump(config, f, default_flow_style=False)
@@ -897,4 +930,5 @@ def main():
 
 
 if __name__ == "__main__":
+    model_saver = ModelSaver()
     main()

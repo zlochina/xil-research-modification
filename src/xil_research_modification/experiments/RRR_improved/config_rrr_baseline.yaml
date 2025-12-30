@@ -1,0 +1,90 @@
+# RRR Experiment Configuration
+# Hyperparameter search and sensitivity analysis for Right for the Right Reasons
+
+experiment:
+  name: "rrr_baseline_mnist_experiment"
+  output_dir: "rrr_output"
+  random_seed_base: 42  # Base seed, will add run_id for each run
+
+# Data paths (relative to experiment script location)
+data:
+  confounded_train: "08MNIST/confounded_v1/train.pth"
+  confounded_test: "08MNIST/confounded_v1/test.pth"  # Used as validation
+  original_test: "08MNIST/original/test.pth"
+  model_weights: "model_confounded.pth"
+  train_dataset_size: 1000  # -1 for full dataset, or specify number
+
+# Model architecture
+model:
+  type: "CNNTwoConv"
+  num_classes: 2
+  target_layer_index: 3  # model[3] - final conv layer
+
+# Phase 1: Hyperparameter Optimization
+phase1:
+  n_iterations: 100  # Number of random samples from hyperparameter space
+  n_runs: 5  # Cross-validation runs per configuration
+  n_init_corrections: 5  # Initial number of user-corrected instances
+
+  # Hyperparameter search space (log-uniform sampling)
+  hyperparameters:
+    lambda_1:  # Right reasons weight
+      min: 0.001
+      max: 100.0
+      scale: "log"
+
+    lambda_2:  # L2 weight regularization
+      min: 1.0e-5
+      max: 1.0
+      scale: "log"
+
+    learning_rate:
+      min: 1.0e-4
+      max: 0.01
+      scale: "log"
+
+  # Training configuration
+  training:
+    batch_size: 64
+    max_epochs: 100
+    optimizer: "adam"
+    optimizer_params:
+      betas: [0.9, 0.999]
+
+    # Early stopping
+    early_stopping:
+      monitor: "val_loss"
+      patience: 10
+      min_delta: 0.0001
+
+    # Loss function
+    loss:
+      criterion: "CrossEntropyLoss"
+      class_weights: [1.0, 1.0]  # Equal weights for zeros and eights
+
+# Phase 2: User-Correction Sensitivity Analysis
+phase2:
+  k_range: [0]  # Number of user corrections
+  n_runs: 5  # Runs per k value
+
+  # Uses best hyperparameters from Phase 1
+  # Training config same as Phase 1
+  training:
+    batch_size: 64
+    max_epochs: 100
+    optimizer: "adam"
+    optimizer_params:
+      betas: [0.9, 0.999]
+
+    early_stopping:
+      monitor: "val_loss"
+      patience: 10
+      min_delta: 0.0
+
+# Logging
+logging:
+  tensorboard: true
+  tensorboard_dir: "runs/rrr_experiment"
+  csv_output: true
+  save_best_model: true
+  log_interval: 10  # Log every N batches
