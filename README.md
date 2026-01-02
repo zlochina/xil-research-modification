@@ -21,7 +21,12 @@
 - [__3rd Party grad cam implementation in PyTorch__](https://github.com/riverback/pytorch_attribution)
 
 ## Authors
-TODO
+- Vladyslav Zlochevskyi
+- Consultation/guidance: prof. Ing. Václav Šmídl, Ph.D.
 
 ## License
-TODO
+[MIT License](./LICENSE)
+
+## Citation
+If you use this code in your research, please cite the associated diploma thesis:
+> Vladyslav Zlochevskyi, "Right for the right reason in malware classification", Czech Technical University in Prague, 2026.
